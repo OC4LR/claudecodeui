@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark as prismOneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { copyTextToClipboard } from '../../../../../utils/clipboard';
+import { MermaidRenderer } from '../../../../chat/view/subcomponents/MermaidRenderer';
 
 type MarkdownCodeBlockProps = {
   inline?: boolean;
@@ -34,6 +35,11 @@ export default function MarkdownCodeBlock({
 
   const languageMatch = /language-(\w+)/.exec(className || '');
   const language = languageMatch ? languageMatch[1] : 'text';
+
+  // Render mermaid diagrams with MermaidRenderer
+  if (language === 'mermaid') {
+    return <MermaidRenderer code={rawContent} />;
+  }
 
   return (
     <div className="group relative my-2">

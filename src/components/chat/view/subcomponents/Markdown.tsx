@@ -8,6 +8,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTranslation } from 'react-i18next';
 import { normalizeInlineCodeFences } from '../../utils/chatFormatting';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
+import { MermaidRenderer } from './MermaidRenderer';
 
 type MarkdownProps = {
   children: React.ReactNode;
@@ -43,6 +44,11 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
 
   const match = /language-(\w+)/.exec(className || '');
   const language = match ? match[1] : 'text';
+
+  // Render mermaid diagrams with MermaidRenderer
+  if (language === 'mermaid') {
+    return <MermaidRenderer code={raw} />;
+  }
 
   return (
     <div className="group relative my-2">
