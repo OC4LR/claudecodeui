@@ -50,9 +50,4 @@ export type SessionViewModel = {
   messageCount: number;
 };
 
-export type MCPServerStatus = {
-  hasMCPServer?: boolean;
-  isConfigured?: boolean;
-} | null;
-
 export type SettingsProject = Pick<Project, 'name' | 'displayName' | 'fullPath' | 'path'>;

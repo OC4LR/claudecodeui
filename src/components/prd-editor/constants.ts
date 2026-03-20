@@ -60,8 +60,5 @@ Describe what problem this product solves and who it serves.
 - Question 2
 `;
 
-export const PRD_DOCS_URL =
-  'https://github.com/eyaltoledano/claude-task-master/blob/main/docs/examples.md';
-
 export const INVALID_FILE_NAME_CHARACTERS = /[<>:"/\\|?*]/g;
 export const PRD_EXTENSION_PATTERN = /\.(txt|md)$/i;

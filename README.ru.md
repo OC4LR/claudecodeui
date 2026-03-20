@@ -61,7 +61,6 @@
 - **Git Explorer** - просмотр, stage и commit изменений. Также можно переключать ветки
 - **Управление сессиями** - возобновляйте диалоги, управляйте несколькими сессиями и отслеживайте историю
 - **Система плагинов** - расширяйте CloudCLI кастомными плагинами — добавляйте новые вкладки, бэкенд-сервисы и интеграции. [Создать свой →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
-- **Интеграция с TaskMaster AI** *(опционально)* - продвинутое управление проектами с планированием задач на базе AI, разбором PRD и автоматизацией workflow
 - **Совместимость с моделями** - работает с семействами моделей Claude, GPT и Gemini (см. [`shared/modelConstants.js`](shared/modelConstants.js) для полного списка поддерживаемых моделей)
 
 
@@ -227,7 +226,6 @@ GNU General Public License v3.0 - подробности в файле [LICENSE]
 - **[Vite](https://vitejs.dev/)** - быстрый инструмент сборки и dev-сервер
 - **[Tailwind CSS](https://tailwindcss.com/)** - utility-first CSS framework
 - **[CodeMirror](https://codemirror.net/)** - продвинутый редактор кода
-- **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(опционально)* - AI-управление проектами и планирование задач
 
 
 ### Спонсоры

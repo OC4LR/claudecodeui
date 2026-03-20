@@ -8,7 +8,6 @@ import {
   Minimize2,
   Moon,
   Save,
-  Sparkles,
   Sun,
   X,
 } from 'lucide-react';
@@ -25,8 +24,6 @@ type PrdEditorHeaderProps = {
   isDarkMode: boolean;
   onToggleTheme: () => void;
   onDownload: () => void;
-  onOpenGenerateTasks: () => void;
-  canGenerateTasks: boolean;
   onSave: () => void;
   saving: boolean;
   saveSuccess: boolean;
@@ -70,8 +67,6 @@ export default function PrdEditorHeader({
   isDarkMode,
   onToggleTheme,
   onDownload,
-  onOpenGenerateTasks,
-  canGenerateTasks,
   onSave,
   saving,
   saveSuccess,
@@ -174,25 +169,13 @@ export default function PrdEditorHeader({
         />
 
         <button
-          onClick={onOpenGenerateTasks}
-          disabled={!canGenerateTasks}
-          className={cn(
-            'px-3 py-2 rounded-md disabled:opacity-50 flex items-center gap-2 transition-colors text-sm font-medium text-white min-h-[44px] md:min-h-0',
-            'bg-purple-600 hover:bg-purple-700',
-          )}
-          title="Generate tasks from PRD content"
-        >
-          <Sparkles className="h-4 w-4" />
-          <span className="hidden md:inline">Generate Tasks</span>
-        </button>
-
-        <button
           onClick={onSave}
           disabled={saving}
           className={cn(
-            'px-3 py-2 text-white rounded-md disabled:opacity-50 flex items-center gap-2 transition-colors min-h-[44px] md:min-h-0',
+            'px-3 py-2 rounded-md disabled:opacity-50 flex items-center gap-2 transition-colors text-sm font-medium text-white min-h-[44px] md:min-h-0',
             saveSuccess ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700',
           )}
+          title="Save PRD"
         >
           {saveSuccess ? (
             <>

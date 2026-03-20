@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { cn } from '../../../lib/utils';
-import { ensurePrdExtension } from '../utils/fileName';
-import GenerateTasksModal from './GenerateTasksModal';
 import PrdEditorBody from './PrdEditorBody';
 import PrdEditorFooter from './PrdEditorFooter';
 import PrdEditorHeader from './PrdEditorHeader';
@@ -37,16 +35,6 @@ export default function PrdEditorWorkspace({
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [previewMode, setPreviewMode] = useState<boolean>(false);
   const [wordWrap, setWordWrap] = useState<boolean>(true);
-  const [showGenerateModal, setShowGenerateModal] = useState<boolean>(false);
-
-  const handleOpenGenerateTasks = () => {
-    if (!content.trim()) {
-      alert('Please add content to the PRD before generating tasks.');
-      return;
-    }
-
-    setShowGenerateModal(true);
-  };
 
   return (
     <div
@@ -81,8 +69,6 @@ export default function PrdEditorWorkspace({
           isDarkMode={isDarkMode}
           onToggleTheme={() => setIsDarkMode((current) => !current)}
           onDownload={onDownload}
-          onOpenGenerateTasks={handleOpenGenerateTasks}
-          canGenerateTasks={Boolean(content.trim())}
           onSave={onSave}
           saving={saving}
           saveSuccess={saveSuccess}
@@ -103,12 +89,6 @@ export default function PrdEditorWorkspace({
 
         <PrdEditorFooter content={content} />
       </div>
-
-      <GenerateTasksModal
-        isOpen={showGenerateModal}
-        fileName={ensurePrdExtension(fileName || 'prd')}
-        onClose={() => setShowGenerateModal(false)}
-      />
     </div>
   );
 }
