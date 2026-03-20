@@ -96,13 +96,13 @@
     "react-i18next": "^16.5.3",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.8.1",
-    "react-syntax-highlighter": "^15.6.1",
+    "react-syntax-highlighter": "^16.1.1",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
+    "sqlite3": "^6.0.1",
     "tailwind-merge": "^3.3.1",
     "web-push": "^3.6.7",
     "ws": "^8.14.2"
@@ -111,7 +111,7 @@
     "@commitlint/cli": "^20.4.3",
     "@commitlint/config-conventional": "^20.4.3",
     "@eslint/js": "^9.39.3",
-    "@release-it/conventional-changelog": "^10.0.5",
+    "@release-it/conventional-changelog": "^10.0.6",
     "@types/node": "^22.19.7",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
@@ -129,9 +129,9 @@
     "globals": "^17.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.3.2",
-    "node-gyp": "^10.0.0",
+    "node-gyp": "^12.2.0",
     "postcss": "^8.4.32",
-    "release-it": "^19.0.5",
+    "release-it": "^19.2.4",
     "sharp": "^0.34.2",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.9.3",
@@ -140,5 +140,8 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": "eslint"
+  },
+  "overrides": {
+    "undici": "^7.24.5"
   }
 }

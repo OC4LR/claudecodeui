@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder - Build frontend and compile native modules
 # -----------------------------------------------------------------------------
-FROM node:22-slim AS builder
+FROM node:22-trixie-slim AS builder
 
 # Install build dependencies (will be discarded)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -45,7 +45,7 @@ RUN npm cache clean --force && \
 # -----------------------------------------------------------------------------
 # Stage 2: Production - Minimal runtime image
 # -----------------------------------------------------------------------------
-FROM node:22-slim
+FROM node:22-trixie-slim
 
 # Install ONLY essential runtime dependencies (NO build tools!)
 RUN apt-get update && apt-get install -y --no-install-recommends \
