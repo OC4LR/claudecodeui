@@ -336,9 +336,11 @@ export function installPluginFromGit(url) {
 
       // Run npm install if package.json exists.
       // --ignore-scripts prevents postinstall hooks from executing arbitrary code.
+      // --include=dev is required because plugin build tooling commonly lives in devDependencies,
+      // while the app itself runs with NODE_ENV=production inside the container.
       const packageJsonPath = path.join(tempDir, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
-        const npmProcess = spawn('npm', ['install', '--ignore-scripts'], {
+        const npmProcess = spawn('npm', ['install', '--include=dev', '--ignore-scripts'], {
           cwd: tempDir,
           stdio: ['ignore', 'pipe', 'pipe'],
         });

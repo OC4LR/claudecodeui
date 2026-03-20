@@ -33,11 +33,67 @@ log_error() {
 setup_claude_config() {
     log_info "Setting up Claude config directory..."
 
-    # Always use /home/node/.claude for node user
-    CLAUDE_CONFIG_DIR="/home/node/.claude"
+    # Setup for both root and node user
+    # When running terminal commands as root, we need config in /root
+    # When running app as node, we need config in /home/node
+    SETUP_USERS=""
+    if [ "$(id -u)" = "0" ]; then
+        SETUP_USERS="/root /home/node"
+    else
+        SETUP_USERS="$HOME"
+    fi
 
-    # Ensure directory exists with correct permissions
-    mkdir -p "$CLAUDE_CONFIG_DIR"
+    for USER_HOME in $SETUP_USERS; do
+        CLAUDE_CONFIG_DIR="$USER_HOME/.claude"
+        CLAUDE_JSON="$USER_HOME/.claude.json"
+
+        log_info "Setting up Claude config for $USER_HOME..."
+
+        # Ensure directory exists with correct permissions
+        mkdir -p "$CLAUDE_CONFIG_DIR"
+        mkdir -p "$CLAUDE_CONFIG_DIR/backups"
+
+        # Create .claude.json (main config file) if not exists
+        if [ ! -f "$CLAUDE_JSON" ]; then
+            log_info "Creating $CLAUDE_JSON..."
+            cat > "$CLAUDE_JSON" << 'CLAUDEJSON'
+{
+  "installMethod": "native",
+  "hasSeenWelcome": true,
+  "hasCompletedOnboarding": true
+}
+CLAUDEJSON
+        fi
+    done
+
+    # Install VoltAgent subagents if available and not already installed
+    if [ -d "/opt/voltagent-agents" ] && [ "$(ls -A /opt/voltagent-agents/*.md 2>/dev/null | wc -l)" -gt 0 ]; then
+        AGENTS_DIR="$CLAUDE_CONFIG_DIR/agents"
+        if [ ! -d "$AGENTS_DIR" ] || [ "$(ls -A $AGENTS_DIR/*.md 2>/dev/null | wc -l)" -eq 0 ]; then
+            log_info "Installing VoltAgent subagents from /opt/voltagent-agents..."
+            mkdir -p "$AGENTS_DIR"
+            cp -r /opt/voltagent-agents/*.md "$AGENTS_DIR/" 2>/dev/null || true
+            AGENT_COUNT=$(ls -1 "$AGENTS_DIR"/*.md 2>/dev/null | wc -l)
+            log_info "Installed $AGENT_COUNT VoltAgent subagents to $AGENTS_DIR"
+        else
+            log_info "VoltAgent subagents already installed ($(ls -1 $AGENTS_DIR/*.md 2>/dev/null | wc -l) agents)"
+        fi
+    fi
+
+    # Install individual Claude Code Skills from external repos (not available as plugins)
+    # Note: superpowers skills are installed via plugin system (see install_claude_plugins)
+    if [ -d "/opt/claude-skills" ] && [ "$(ls -A /opt/claude-skills/*.md 2>/dev/null | wc -l)" -gt 0 ]; then
+        SKILLS_DIR="$CLAUDE_CONFIG_DIR/skills"
+        if [ ! -d "$SKILLS_DIR" ] || [ "$(ls -A $SKILLS_DIR/*.md 2>/dev/null | wc -l)" -eq 0 ]; then
+            log_info "Installing Claude Code skills from /opt/claude-skills..."
+            mkdir -p "$SKILLS_DIR"
+            cp -r /opt/claude-skills/*.md "$SKILLS_DIR/" 2>/dev/null || true
+            SKILL_COUNT=$(ls -1 "$SKILLS_DIR"/*.md 2>/dev/null | wc -l)
+            log_info "Installed $SKILL_COUNT Claude Code skills to $SKILLS_DIR"
+        else
+            log_info "Claude Code skills already installed ($(ls -1 $SKILLS_DIR/*.md 2>/dev/null | wc -l) skills)"
+        fi
+    fi
 
     # Create settings.json dari environment variable
     if [ -n "$CLAUDE_SETTINGS_JSON" ]; then
@@ -57,13 +113,32 @@ setup_claude_config() {
   "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "$ANTHROPIC_AUTH_TOKEN",
-    "ANTHROPIC_BASE_URL": "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}",
-    "CLAUDE_CODE_DISABLE_TELEMETRY": "1"
+    "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
+    "API_TIMEOUT_MS": "9000000",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.7",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_DISABLE_TELEMETRY": "1",
+    "DISABLE_COST_WARNING": "1",
+    "DISABLE_MEMORY_WARNING": "1"
   },
   "permissions": {
     "allow": ["*"],
     "deny": []
-  }
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "context-mode@context-mode": true
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "includeCoAuthoredBy": false,
+  "language": "Bahasa Indonesia",
+  "fastMode": true,
+  "outputStyle": "Explanatory",
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium"
 }
 EOF
         log_info "Created settings.json with auth token"
@@ -110,6 +185,46 @@ EOF
 }
 
 # =============================================================================
+# Setup MCP Servers
+# =============================================================================
+setup_mcp_servers() {
+    log_info "Setting up MCP servers..."
+
+    # Check if claude command is available
+    if ! command -v claude &> /dev/null; then
+        log_warn "Claude CLI not available, skipping MCP setup"
+        return 0
+    fi
+
+    # Pre-install npm packages for MCP servers
+    log_info "Pre-installing MCP server packages..."
+    npm install -g @z_ai/mcp-server @modelcontextprotocol/server-sequential-thinking 2>/dev/null || log_warn "Some npm packages may have failed to install"
+
+    # Add MCP servers using claude mcp add command
+    log_info "Adding MCP servers..."
+
+    # zai-mcp-server (stdio)
+    claude mcp add -s user zai-mcp-server --env "Z_AI_API_KEY=$ANTHROPIC_AUTH_TOKEN" --env "Z_AI_MODE=ZAI" -- npx -y "@z_ai/mcp-server" 2>/dev/null || log_warn "Failed to add zai-mcp-server"
+
+    # web-search-prime (http)
+    claude mcp add -s user -t http web-search-prime "https://api.z.ai/api/mcp/web_search_prime/mcp" --header "Authorization: $ANTHROPIC_AUTH_TOKEN" 2>/dev/null || log_warn "Failed to add web-search-prime"
+
+    # web-reader (http)
+    claude mcp add -s user -t http web-reader "https://api.z.ai/api/mcp/web_reader/mcp" --header "Authorization: Bearer $ANTHROPIC_AUTH_TOKEN" 2>/dev/null || log_warn "Failed to add web-reader"
+
+    # zread (http)
+    claude mcp add -s user -t http zread "https://api.z.ai/api/mcp/zread/mcp" --header "Authorization: Bearer $ANTHROPIC_AUTH_TOKEN" 2>/dev/null || log_warn "Failed to add zread"
+
+    # context7 (http)
+    claude mcp add -s user -t http context7 "https://gitmcp.io/upstash/context7" 2>/dev/null || log_warn "Failed to add context7"
+
+    # sequentialthinking (stdio)
+    claude mcp add -s user sequentialthinking -- npx -y "@modelcontextprotocol/server-sequential-thinking" 2>/dev/null || log_warn "Failed to add sequentialthinking"
+
+    log_info "MCP servers configured: zai-mcp-server, web-search-prime, web-reader, zread, context7, sequentialthinking"
+}
+
+# =============================================================================
 # Fix Permissions (jika running as root)
 # =============================================================================
 fix_permissions() {
@@ -126,6 +241,28 @@ fix_permissions() {
 }
 
 # =============================================================================
+# Final Claude Ownership Repair (after root-level Claude setup)
+# =============================================================================
+repair_claude_ownership() {
+    local claude_dir="/home/node/.claude"
+
+    log_info "Running final Claude ownership repair before switching users..."
+
+    if [ "$(id -u)" != "0" ]; then
+        log_info "Skipping Claude ownership repair because current user is not root"
+        return 0
+    fi
+
+    if [ ! -e "$claude_dir" ]; then
+        log_info "Skipping Claude ownership repair because $claude_dir does not exist"
+        return 0
+    fi
+
+    chown -R node:node "$claude_dir"
+    log_info "Claude ownership repaired for $claude_dir"
+}
+
+# =============================================================================
 # Switch User dan Execute Command
 # =============================================================================
 execute_as_user() {
@@ -138,9 +275,96 @@ execute_as_user() {
 }
 
 # =============================================================================
+# Install Claude Plugins (includes superpowers with all skills + hooks)
+# =============================================================================
+install_claude_plugins() {
+    log_info "Installing Claude plugins..."
+
+    # Check if claude command is available
+    if ! command -v claude &> /dev/null; then
+        log_warn "Claude CLI not available, skipping plugin installation"
+        return 0
+    fi
+
+    # Add marketplaces first (required before we can install from them)
+    log_info "Adding plugin marketplaces..."
+
+    # Add superpowers-marketplace from GitHub
+    if claude plugins marketplace list 2>/dev/null | grep -q "superpowers-marketplace"; then
+        log_info "superpowers-marketplace already configured"
+    else
+        log_info "Adding superpowers-marketplace..."
+        if claude plugins marketplace add obra/superpowers-marketplace; then
+            log_info "superpowers-marketplace added successfully"
+        else
+            log_warn "Failed to add superpowers-marketplace"
+        fi
+    fi
+
+    # Add context-mode marketplace from GitHub
+    if claude plugins marketplace list 2>/dev/null | grep -q "context-mode"; then
+        log_info "context-mode marketplace already configured"
+    else
+        log_info "Adding context-mode marketplace..."
+        if claude plugins marketplace add mksglu/context-mode; then
+            log_info "context-mode marketplace added successfully"
+        else
+            log_warn "Failed to add context-mode marketplace"
+        fi
+    fi
+
+    # Update marketplaces to get latest plugin manifests
+    log_info "Updating plugin marketplaces..."
+    claude plugins marketplace update 2>/dev/null || log_warn "Failed to update marketplaces"
+
+    # Install superpowers plugin (includes 14+ skills with hooks)
+    # This is the CORRECT way to install superpowers - not via file copying
+    if claude plugins list 2>/dev/null | grep -q "superpowers"; then
+        log_info "superpowers plugin already installed"
+    else
+        log_info "Installing superpowers plugin..."
+        if claude plugins install superpowers@superpowers-marketplace; then
+            log_info "superpowers plugin installed successfully"
+        else
+            log_warn "Failed to install superpowers plugin"
+        fi
+    fi
+
+    # Install context-mode plugin
+    if claude plugins list 2>/dev/null | grep -q "context-mode"; then
+        log_info "context-mode plugin already installed"
+    else
+        log_info "Installing context-mode plugin..."
+        if claude plugins install context-mode@context-mode; then
+            log_info "context-mode plugin installed successfully"
+        else
+            log_warn "Failed to install context-mode plugin"
+        fi
+    fi
+
+    log_info "Plugin installation complete"
+}
+
+# =============================================================================
 # Main Execution
 # =============================================================================
 main() {
+    # Ensure ~/.local/bin is in PATH for Claude CLI
+    export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
+
+    # Add to shell config for interactive shells (claude doctor check)
+    # This must be done for BOTH the current user AND root (if different)
+    for user_home in "$HOME" "/root" "/home/node"; do
+        if [ -d "$user_home" ]; then
+            for shell_rc in "$user_home/.bashrc" "$user_home/.zshrc"; do
+                if [ -d "$(dirname "$shell_rc")" ] && ! grep -q 'export PATH.*\.local/bin' "$shell_rc" 2>/dev/null; then
+                    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$shell_rc"
+                    log_info "Added ~/.local/bin to PATH in $shell_rc"
+                fi
+            done
+        fi
+    done
+
     log_info "=========================================="
     log_info "CloudCLI UI Container Starting"
     log_info "=========================================="
@@ -155,8 +379,71 @@ main() {
     # Fix permissions first
     fix_permissions
 
+    # Note: Claude is installed natively at /root/.local/bin/claude with the actual binary
+    # at /root/.local/share/claude/versions/X.X.X/claude
+    # We also have a symlink at /usr/local/bin/claude for system-wide access
+
+    # Verify Claude CLI is accessible
+    if ! command -v claude &> /dev/null; then
+        log_warn "Claude CLI not found in PATH!"
+        log_warn "PATH: $PATH"
+        log_error "Claude CLI installation failed! Terminal features will not work."
+    else
+        log_info "Claude CLI verified at: $(which claude)"
+    fi
+
+    # Setup ~/.local/bin/claude symlink for claude doctor path check
+    # This is needed for BOTH root and node users
+    # The native installation is at /root/.local/bin/claude
+    NATIVE_CLAUDE="/root/.local/bin/claude"
+
+    if [ -x "$NATIVE_CLAUDE" ]; then
+        # For current user (could be root or node)
+        mkdir -p "$HOME/.local/bin" 2>/dev/null || true
+        if [ ! -L "$HOME/.local/bin/claude" ]; then
+            ln -sf "$NATIVE_CLAUDE" "$HOME/.local/bin/claude"
+            log_info "Created symlink $HOME/.local/bin/claude -> $NATIVE_CLAUDE"
+        fi
+
+        # For root user (if we're running as root and HOME is /home/node)
+        if [ "$(id -u)" = "0" ] && [ "$HOME" != "/root" ]; then
+            mkdir -p /root/.local/bin 2>/dev/null || true
+            if [ ! -L "/root/.local/bin/claude" ]; then
+                ln -sf "$NATIVE_CLAUDE" /root/.local/bin/claude
+                log_info "Created symlink /root/.local/bin/claude -> $NATIVE_CLAUDE"
+            fi
+        fi
+
+        # For node user (always create if running as root)
+        if [ "$(id -u)" = "0" ]; then
+            mkdir -p /home/node/.local/bin 2>/dev/null || true
+            if [ ! -L "/home/node/.local/bin/claude" ]; then
+                ln -sf "$NATIVE_CLAUDE" /home/node/.local/bin/claude
+                chown -R node:node /home/node/.local 2>/dev/null || true
+                log_info "Created symlink /home/node/.local/bin/claude -> $NATIVE_CLAUDE"
+            fi
+        fi
+    else
+        log_warn "Native Claude installation not found at $NATIVE_CLAUDE"
+    fi
+
+    # Update /usr/local/bin/claude symlink to point to native installation
+    if [ -x "$NATIVE_CLAUDE" ] && [ ! -L "/usr/local/bin/claude" ]; then
+        ln -sf "$NATIVE_CLAUDE" /usr/local/bin/claude
+        log_info "Updated /usr/local/bin/claude -> $NATIVE_CLAUDE"
+    fi
+
     # Setup Claude config
     setup_claude_config
+
+    # Setup MCP servers
+    setup_mcp_servers
+
+    # Install Claude plugins (superpowers, context-mode)
+    install_claude_plugins
+
+    # Final repair in case Claude setup/plugins created root-owned files after initial fix
+    repair_claude_ownership
 
     # Debug: list what's in .claude
     log_info "Contents of /home/node/.claude:"

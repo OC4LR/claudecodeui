@@ -3,22 +3,55 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+
     container_name: claude-code-ui
+
     restart: unless-stopped
+
     ports:
       - "3001:3001"
 
-    # Load environment variables from .env file
-    env_file:
-      - .env
-
+    # Environment variables - Set these in Dokploy Dashboard
     environment:
-      # Override jika diperlukan
       - NODE_ENV=production
+      - SERVER_PORT=3001
+      - HOST=0.0.0.0
+      - DATABASE_PATH=/app/data/auth.db
+      - CONTEXT_WINDOW=160000
+      - VITE_CONTEXT_WINDOW=160000
+      - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN}
+      - JWT_SECRET=${JWT_SECRET}
 
+    # Persistent Volumes
+    volumes:
+      - claude-data:/app/data
+      - claude-config:/home/node/.claude
+      - claude-workspace:/home/node/workspace
+      - claude-projects:/home/node/Projects
+
+    # Health Check
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
+    # Labels
+    labels:
+      - "app.name=claude-code-ui"
+      - "app.description=Web-based UI for Claude Code CLI"
+
+# Named Volumes - Persistent Storage
+volumes:
+  claude-data:
+    name: claude-code-ui-data
+
+  claude-config:
+    name: claude-code-ui-config
+
+  claude-workspace:
+    name: claude-code-ui-workspace
+
+  claude-projects:
+    name: claude-code-ui-projects

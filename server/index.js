@@ -1770,8 +1770,13 @@ function handleShellConnection(ws) {
                     // Build shell command — use cwd for project path (never interpolate into shell string)
                     let shellCommand;
                     if (isPlainShell) {
-                        // Plain shell mode - run the initial command in the project directory
-                        shellCommand = initialCommand;
+                        // Plain shell mode - run the initial command or start interactive bash
+                        if (initialCommand && initialCommand.trim()) {
+                            shellCommand = initialCommand;
+                        } else {
+                            // No initial command - start interactive bash shell
+                            shellCommand = 'bash';
+                        }
                     } else if (provider === 'cursor') {
                         if (hasSession && sessionId) {
                             shellCommand = `cursor-agent --resume="${sessionId}"`;
@@ -1832,9 +1837,18 @@ function handleShellConnection(ws) {
 
                     console.log('🔧 Executing shell command:', shellCommand);
 
-                    // Use appropriate shell based on platform
-                    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-                    const shellArgs = os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
+                    // Use absolute path for shell to avoid PATH resolution issues in containers
+                    const shell = os.platform() === 'win32'
+                        ? 'powershell.exe'
+                        : (fs.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh');
+                    let shellArgs;
+
+                    if (shellCommand === 'bash' && isPlainShell) {
+                        // Interactive bash shell - no -c flag needed
+                        shellArgs = [];
+                    } else {
+                        shellArgs = os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
+                    }
 
                     // Use terminal dimensions from client if provided, otherwise use defaults
                     const termCols = data.cols || 80;
@@ -1848,6 +1862,9 @@ function handleShellConnection(ws) {
                         cwd: resolvedProjectPath,
                         env: {
                             ...process.env,
+                            // Include standard Linux paths FIRST, then Claude CLI paths
+                            // This ensures basic commands (ls, cat, etc.) and shells work in containers
+                            PATH: `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin:/home/node/.local/bin:${process.env.HOME}/.local/bin:${process.env.PATH || ''}`,
                             TERM: 'xterm-256color',
                             COLORTERM: 'truecolor',
                             FORCE_COLOR: '3'

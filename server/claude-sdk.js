@@ -30,6 +30,9 @@ const pendingToolApprovals = new Map();
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
+// Timeout for the entire SDK query operation (default 10 minutes)
+const SDK_QUERY_TIMEOUT_MS = parseInt(process.env.SDK_QUERY_TIMEOUT_MS, 10) || 600000;
+
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion']);
 
 function createRequestId() {
@@ -633,58 +636,95 @@ async function queryClaudeSDK(command, options = {}, ws) {
       addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
     }
 
-    // Process streaming messages
+    // Process streaming messages with timeout protection
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
-    for await (const message of queryInstance) {
-      // Capture session ID from first message
-      if (message.session_id && !capturedSessionId) {
+    
+    let queryTimeout;
+    let completed = false;
+    
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      queryTimeout = setTimeout(() => {
+        reject(new Error(`SDK query timeout after ${SDK_QUERY_TIMEOUT_MS}ms`));
+      }, SDK_QUERY_TIMEOUT_MS);
+    });
+    
+    // Create a promise for the actual query
+    const queryPromise = (async () => {
+      for await (const message of queryInstance) {
+        // Capture session ID from first message
+        if (message.session_id && !capturedSessionId) {
 
-        capturedSessionId = message.session_id;
-        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+          capturedSessionId = message.session_id;
+          addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
 
-        // Set session ID on writer
-        if (ws.setSessionId && typeof ws.setSessionId === 'function') {
-          ws.setSessionId(capturedSessionId);
-        }
+          // Set session ID on writer
+          if (ws.setSessionId && typeof ws.setSessionId === 'function') {
+            ws.setSessionId(capturedSessionId);
+          }
 
-        // Send session-created event only once for new sessions
-        if (!sessionId && !sessionCreatedSent) {
-          sessionCreatedSent = true;
-          ws.send({
-            type: 'session-created',
-            sessionId: capturedSessionId
-          });
+          // Send session-created event only once for new sessions
+          if (!sessionId && !sessionCreatedSent) {
+            sessionCreatedSent = true;
+            ws.send({
+              type: 'session-created',
+              sessionId: capturedSessionId
+            });
+          } else {
+            console.log('Not sending session-created. sessionId:', sessionId, 'sessionCreatedSent:', sessionCreatedSent);
+          }
         } else {
-          console.log('Not sending session-created. sessionId:', sessionId, 'sessionCreatedSent:', sessionCreatedSent);
+          console.log('No session_id in message or already captured. message.session_id:', message.session_id, 'capturedSessionId:', capturedSessionId);
         }
-      } else {
-        console.log('No session_id in message or already captured. message.session_id:', message.session_id, 'capturedSessionId:', capturedSessionId);
-      }
 
-      // Transform and send message to WebSocket
-      const transformedMessage = transformMessage(message);
-      ws.send({
-        type: 'claude-response',
-        data: transformedMessage,
-        sessionId: capturedSessionId || sessionId || null
-      });
+        // Transform and send message to WebSocket
+        const transformedMessage = transformMessage(message);
+        ws.send({
+          type: 'claude-response',
+          data: transformedMessage,
+          sessionId: capturedSessionId || sessionId || null
+        });
 
-      // Extract and send token budget updates from result messages
-      if (message.type === 'result') {
-        const models = Object.keys(message.modelUsage || {});
-        if (models.length > 0) {
-          console.log("---> Model was sent using:", models);
-        }
-        const tokenBudget = extractTokenBudget(message);
-        if (tokenBudget) {
-          console.log('Token budget from modelUsage:', tokenBudget);
-          ws.send({
-            type: 'token-budget',
-            data: tokenBudget,
-            sessionId: capturedSessionId || sessionId || null
-          });
+        // Extract and send token budget updates from result messages
+        if (message.type === 'result') {
+          const models = Object.keys(message.modelUsage || {});
+          if (models.length > 0) {
+            console.log("---> Model was sent using:", models);
+          }
+          const tokenBudget = extractTokenBudget(message);
+          if (tokenBudget) {
+            console.log('Token budget from modelUsage:', tokenBudget);
+            ws.send({
+              type: 'token-budget',
+              data: tokenBudget,
+              sessionId: capturedSessionId || sessionId || null
+            });
+          }
         }
       }
+    })();
+    
+    try {
+      // Race between query completion and timeout
+      await Promise.race([queryPromise, timeoutPromise]);
+      clearTimeout(queryTimeout);
+      completed = true;
+    } catch (error) {
+      clearTimeout(queryTimeout);
+      
+      // If timeout occurred, try to abort the session
+      if (error.message.includes('timeout') && capturedSessionId) {
+        console.error(`SDK query timeout for session ${capturedSessionId}, attempting abort`);
+        try {
+          const session = getSession(capturedSessionId);
+          if (session?.instance?.interrupt) {
+            await session.instance.interrupt();
+          }
+        } catch (abortError) {
+          console.error('Error aborting timed out session:', abortError);
+        }
+      }
+      throw error;
     }
 
     // Clean up session on completion
@@ -708,7 +748,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
       provider: 'claude',
       sessionId: capturedSessionId || sessionId || null,
       sessionName: sessionSummary,
-      stopReason: 'completed'
+      stopReason: completed ? 'completed' : 'timeout'
     });
     console.log('claude-complete event sent');
 
