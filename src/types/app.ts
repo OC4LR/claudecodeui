@@ -23,13 +23,6 @@ export interface ProjectSessionMeta {
   [key: string]: unknown;
 }
 
-export interface ProjectTaskmasterInfo {
-  hasTaskmaster?: boolean;
-  status?: string;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 export interface Project {
   name: string;
   displayName: string;
@@ -40,7 +33,6 @@ export interface Project {
   codexSessions?: ProjectSession[];
   geminiSessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
-  taskmaster?: ProjectTaskmasterInfo;
   [key: string]: unknown;
 }
 

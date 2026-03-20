@@ -138,7 +138,7 @@ export function useChatRealtimeHandlers({
         : null;
     const messageType = String(latestMessage.type);
 
-    const globalMessageTypes = ['projects_updated', 'taskmaster-project-updated', 'session-created', 'websocket-reconnected'];
+    const globalMessageTypes = ['projects_updated', 'session-created', 'websocket-reconnected'];
     const isGlobalMessage = globalMessageTypes.includes(messageType);
     const lifecycleMessageTypes = new Set([
       'claude-complete',
