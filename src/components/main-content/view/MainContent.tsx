@@ -114,6 +114,7 @@ function MainContent({
                 session={selectedSession}
                 showHeader={false}
                 isActive={activeTab === 'shell'}
+                isPlainShell={true}
               />
             </div>
           )}
