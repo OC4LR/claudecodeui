@@ -28,6 +28,114 @@ log_error() {
 }
 
 # =============================================================================
+# Install everything-claude-code Resources
+# =============================================================================
+install_everything_claude_code() {
+    log_info "Installing everything-claude-code resources..."
+
+    # Check if source directory exists
+    if [ ! -d "/opt/everything-claude-code" ]; then
+        log_warn "/opt/everything-claude-code not found, skipping"
+        return 0
+    fi
+
+    # Determine config directory based on current user
+    if [ "$(id -u)" = "0" ]; then
+        local CONFIG_DIR="/home/node/.claude"
+    else
+        local CONFIG_DIR="$HOME/.claude"
+    fi
+
+    # Install Agents (merge with existing VoltAgent agents)
+    if [ -d "/opt/everything-claude-code/agents" ]; then
+        local AGENTS_DIR="$CONFIG_DIR/agents"
+        mkdir -p "$AGENTS_DIR"
+        local EXISTING_COUNT=$(ls -1 "$AGENTS_DIR"/*.md 2>/dev/null | wc -l)
+        cp -r /opt/everything-claude-code/agents/*.md "$AGENTS_DIR/" 2>/dev/null || true
+        local NEW_COUNT=$(ls -1 "$AGENTS_DIR"/*.md 2>/dev/null | wc -l)
+        log_info "Agents: $EXISTING_COUNT -> $NEW_COUNT files in $AGENTS_DIR"
+    fi
+
+    # Install Skills (merge with existing skills)
+    if [ -d "/opt/everything-claude-code/skills" ]; then
+        local SKILLS_DIR="$CONFIG_DIR/skills"
+        mkdir -p "$SKILLS_DIR"
+        # Copy skill directories (each skill is a directory with content)
+        for skill_dir in /opt/everything-claude-code/skills/*/; do
+            if [ -d "$skill_dir" ]; then
+                local skill_name=$(basename "$skill_dir")
+                if [ ! -d "$SKILLS_DIR/$skill_name" ]; then
+                    cp -r "$skill_dir" "$SKILLS_DIR/" 2>/dev/null || true
+                fi
+            fi
+        done
+        local SKILL_COUNT=$(ls -d "$SKILLS_DIR"/*/ 2>/dev/null | wc -l)
+        log_info "Skills: $SKILL_COUNT skill directories in $SKILLS_DIR"
+    fi
+
+    # Install Commands (slash commands)
+    if [ -d "/opt/everything-claude-code/commands" ]; then
+        local COMMANDS_DIR="$CONFIG_DIR/commands"
+        mkdir -p "$COMMANDS_DIR"
+        cp -r /opt/everything-claude-code/commands/*.md "$COMMANDS_DIR/" 2>/dev/null || true
+        local CMD_COUNT=$(ls -1 "$COMMANDS_DIR"/*.md 2>/dev/null | wc -l)
+        log_info "Commands: $CMD_COUNT files in $COMMANDS_DIR"
+    fi
+
+    # Install Rules (coding standards)
+    if [ -d "/opt/everything-claude-code/rules" ]; then
+        local RULES_DIR="$CONFIG_DIR/rules"
+        mkdir -p "$RULES_DIR"
+        # Copy common rules
+        if [ -d "/opt/everything-claude-code/rules/common" ]; then
+            mkdir -p "$RULES_DIR/common"
+            cp -r /opt/everything-claude-code/rules/common/*.md "$RULES_DIR/common/" 2>/dev/null || true
+        fi
+        # Copy language-specific rules
+        for lang_dir in /opt/everything-claude-code/rules/*/; do
+            local lang=$(basename "$lang_dir")
+            if [ "$lang" != "common" ]; then
+                mkdir -p "$RULES_DIR/$lang"
+                cp -r "$lang_dir"*.md "$RULES_DIR/$lang/" 2>/dev/null || true
+            fi
+        done
+        local RULES_COUNT=$(find "$RULES_DIR" -name "*.md" 2>/dev/null | wc -l)
+        log_info "Rules: $RULES_COUNT files in $RULES_DIR"
+    fi
+
+    # Install Hooks (merge with superpowers hooks)
+    if [ -d "/opt/everything-claude-code/hooks" ]; then
+        local HOOKS_DIR="$CONFIG_DIR/hooks"
+        mkdir -p "$HOOKS_DIR"
+        # Copy hook scripts
+        if [ -d "/opt/everything-claude-code/hooks/hooks" ]; then
+            cp -r /opt/everything-claude-code/hooks/hooks/* "$HOOKS_DIR/" 2>/dev/null || true
+        fi
+        # Copy hooks.json if exists (will be merged by Claude)
+        if [ -f "/opt/everything-claude-code/hooks/hooks.json" ]; then
+            cp /opt/everything-claude-code/hooks/hooks.json "$CONFIG_DIR/hooks.json" 2>/dev/null || true
+        fi
+        log_info "Hooks installed to $HOOKS_DIR"
+    fi
+
+    # Install Contexts (development contexts)
+    if [ -d "/opt/everything-claude-code/contexts" ]; then
+        local CONTEXTS_DIR="$CONFIG_DIR/contexts"
+        mkdir -p "$CONTEXTS_DIR"
+        cp -r /opt/everything-claude-code/contexts/*.md "$CONTEXTS_DIR/" 2>/dev/null || true
+        local CTX_COUNT=$(ls -1 "$CONTEXTS_DIR"/*.md 2>/dev/null | wc -l)
+        log_info "Contexts: $CTX_COUNT files in $CONTEXTS_DIR"
+    fi
+
+    # Set permissions for node user
+    if [ "$(id -u)" = "0" ]; then
+        chown -R node:node "$CONFIG_DIR"
+    fi
+
+    log_info "everything-claude-code installation complete"
+}
+
+# =============================================================================
 # Setup Claude Config Directory
 # =============================================================================
 setup_claude_config() {
@@ -438,6 +546,9 @@ main() {
 
     # Setup MCP servers
     setup_mcp_servers
+
+    # Install everything-claude-code resources (agents, skills, commands, rules, hooks)
+    install_everything_claude_code
 
     # Install Claude plugins (superpowers, context-mode)
     install_claude_plugins

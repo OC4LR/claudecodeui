@@ -96,6 +96,14 @@ RUN chmod +x /tmp/install-skills.sh && \
     /tmp/install-skills.sh && \
     rm /tmp/install-skills.sh
 
+# Install everything-claude-code from GitHub to /opt (persisted, not overwritten by volume)
+# Repository: https://github.com/affaan-m/everything-claude-code
+# Contains: 50+ skills, 18+ agents, 50+ commands, rules, hooks, mcp-configs
+COPY scripts/install-everything-claude-code.sh /tmp/install-everything-claude-code.sh
+RUN chmod +x /tmp/install-everything-claude-code.sh && \
+    TARGET_DIR=/opt/everything-claude-code /tmp/install-everything-claude-code.sh && \
+    rm /tmp/install-everything-claude-code.sh
+
 # Setup node user
 RUN mkdir -p /home/node && \
     chown -R node:node /home/node
