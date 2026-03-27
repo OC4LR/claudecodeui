@@ -223,9 +223,9 @@ CLAUDEJSON
     "ANTHROPIC_AUTH_TOKEN": "$ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
     "API_TIMEOUT_MS": "9000000",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.7",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.1",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "CLAUDE_CODE_DISABLE_TELEMETRY": "1",
@@ -535,10 +535,11 @@ main() {
         log_warn "Native Claude installation not found at $NATIVE_CLAUDE"
     fi
 
-    # Update /usr/local/bin/claude symlink to point to native installation
-    if [ -x "$NATIVE_CLAUDE" ] && [ ! -L "/usr/local/bin/claude" ]; then
-        ln -sf "$NATIVE_CLAUDE" /usr/local/bin/claude
-        log_info "Updated /usr/local/bin/claude -> $NATIVE_CLAUDE"
+    # Remove /usr/local/bin/claude to prevent "multiple installations" warning
+    # claude doctor detects /usr/local/bin/claude as "npm-global" even if it's a symlink
+    if [ -e "/usr/local/bin/claude" ]; then
+        rm -f /usr/local/bin/claude
+        log_info "Removed /usr/local/bin/claude to prevent multiple installation detection"
     fi
 
     # Setup Claude config

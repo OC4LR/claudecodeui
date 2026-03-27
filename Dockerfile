@@ -67,11 +67,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
     # Verify installation
     if [ -f "/root/.local/bin/claude" ]; then \
-        # Create shared bin directory and symlink for all users
-        mkdir -p /usr/local/bin && \
-        ln -sf /root/.local/bin/claude /usr/local/bin/claude && \
         chmod +x /root/.local/bin/claude; \
     fi && \
+    # Remove any leftover at /usr/local/bin to prevent "multiple installations" warning
+    # claude doctor detects /usr/local/bin/claude as "npm-global" even if it's a symlink
+    rm -f /usr/local/bin/claude && \
     # FIX: Make claude binary accessible to non-root users (node user)
     # The /root directory is normally only accessible by root, but we need
     # the node user to be able to execute claude CLI for terminal sessions
