@@ -636,6 +636,19 @@ async function queryClaudeSDK(command, options = {}, ws) {
         reject(new Error(`SDK query timeout after ${SDK_QUERY_TIMEOUT_MS}ms`));
       }, SDK_QUERY_TIMEOUT_MS);
     });
+
+    // Send a warning to the client at 80% of the timeout
+    const warningTimeout = setTimeout(() => {
+      if (completed) return;
+      try {
+        ws.send(createNormalizedMessage({
+          kind: 'status',
+          text: `Query is approaching the timeout limit (${Math.round(SDK_QUERY_TIMEOUT_MS / 160000)} min). Consider simplifying your request.`,
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'claude'
+        }));
+      } catch (_) { /* client may have disconnected */ }
+    }, Math.round(SDK_QUERY_TIMEOUT_MS * 0.8));
     
     // Create a promise for the actual query
     const queryPromise = (async () => {
@@ -692,10 +705,12 @@ async function queryClaudeSDK(command, options = {}, ws) {
       // Race between query completion and timeout
       await Promise.race([queryPromise, timeoutPromise]);
       clearTimeout(queryTimeout);
+      clearTimeout(warningTimeout);
       completed = true;
     } catch (error) {
       clearTimeout(queryTimeout);
-      
+      clearTimeout(warningTimeout);
+
       // If timeout occurred, try to abort the session
       if (error.message.includes('timeout') && capturedSessionId) {
         console.error(`SDK query timeout for session ${capturedSessionId}, attempting abort`);
@@ -741,8 +756,12 @@ async function queryClaudeSDK(command, options = {}, ws) {
     // Clean up temporary image files on error
     await cleanupTempFiles(tempImagePaths, tempDir);
 
-    // Send error to WebSocket
-    ws.send(createNormalizedMessage({ kind: 'error', content: error.message, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    // Send error to WebSocket with user-friendly message for timeouts
+    const isTimeout = error.message && error.message.includes('timeout');
+    const userMessage = isTimeout
+      ? `Query timed out after ${Math.round(SDK_QUERY_TIMEOUT_MS / 60000)} minutes. Try simplifying your request or set SDK_QUERY_TIMEOUT_MS env var to a higher value.`
+      : error.message;
+    ws.send(createNormalizedMessage({ kind: 'error', content: userMessage, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
     notifyRunFailed({
       userId: ws?.userId || null,
       provider: 'claude',

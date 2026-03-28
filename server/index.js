@@ -794,6 +794,10 @@ app.get('/api/projects/:projectName/file', authenticateToken, async (req, res) =
             return res.status(403).json({ error: 'Path must be under project root' });
         }
 
+        const stat = await fsPromises.stat(resolved);
+        if (stat.isDirectory()) {
+            return res.status(400).json({ error: 'Path is a directory, not a file' });
+        }
         const content = await fsPromises.readFile(resolved, 'utf8');
         res.json({ content, path: resolved });
     } catch (error) {
@@ -802,6 +806,8 @@ app.get('/api/projects/:projectName/file', authenticateToken, async (req, res) =
             res.status(404).json({ error: 'File not found' });
         } else if (error.code === 'EACCES') {
             res.status(403).json({ error: 'Permission denied' });
+        } else if (error.code === 'EISDIR') {
+            res.status(400).json({ error: 'Path is a directory, not a file' });
         } else {
             res.status(500).json({ error: error.message });
         }
