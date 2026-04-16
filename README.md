@@ -75,48 +75,58 @@ The fastest way to get started — no local setup required. Get a fully managed,
 
 ### Self-Hosted (Open source)
 
+#### npm
+
 Try CloudCLI UI instantly with **npx** (requires **Node.js** v22+):
 
 ```
-npx @siteboon/claude-code-ui
+npx @cloudcli-ai/cloudcli
 ```
 
 Or install **globally** for regular use:
 
 ```
-npm install -g @siteboon/claude-code-ui
+npm install -g @cloudcli-ai/cloudcli
 cloudcli
 ```
 
 Open `http://localhost:3001` — all your existing sessions are discovered automatically.
 
-Visit the **[documentation →](https://cloudcli.ai/docs)** for more full configuration options, PM2, remote server setup and more
+Visit the **[documentation →](https://cloudcli.ai/docs)** for full configuration options, PM2, remote server setup and more.
+
+#### Docker Sandboxes (Experimental)
+
+Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
+
+```
+npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project
+```
+
+Supports Claude Code, Codex, and Gemini CLI. See the [sandbox docs](docker/) for setup and advanced options.
 
 
 ---
 
 ## Which option is right for you?
 
-CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self-host it on your own machine, or use CloudCLI Cloud which builds on top of it with a full managed cloud environment, team features, and deeper integrations.
+CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self-host it on your own machine, run it in a Docker sandbox for isolation, or use CloudCLI Cloud for a fully managed environment.
 
-| | CloudCLI UI (Self-hosted) | CloudCLI Cloud |
-|---|---|---|
-| **Best for** | Developers who want a full UI for local agent sessions on their own machine | Teams and developers who want agents running in the cloud, accessible from anywhere |
-| **How you access it** | Browser via `[yourip]:port` | Browser, any IDE, REST API, n8n |
-| **Setup** | `npx @siteboon/claude-code-ui` | No setup required |
-| **Machine needs to stay on** | Yes | No |
-| **Mobile access** | Any browser on your network | Any device, native app coming |
-| **Sessions available** | All sessions auto-discovered from `~/.claude` | All sessions within your cloud environment |
-| **Agents supported** | Claude Code, Cursor CLI, Codex, Gemini CLI | Claude Code, Cursor CLI, Codex, Gemini CLI |
-| **File explorer and Git** | Yes, built into the UI | Yes, built into the UI |
-| **MCP configuration** | Managed via UI, synced with your local `~/.claude` config | Managed via UI |
-| **IDE access** | Your local IDE | Any IDE connected to your cloud environment |
-| **REST API** | Yes | Yes |
-| **n8n node** | No | Yes |
-| **Team sharing** | No | Yes |
-| **Platform cost** | Free, open source | Starts at $7/month |
+| | Self-Hosted (npm) | Self-Hosted (Docker Sandbox) *(Experimental)* | CloudCLI Cloud |
+|---|---|---|---|
+| **Best for** | Local agent sessions on your own machine | Isolated agents with web/mobile IDE | Teams who want agents in the cloud |
+| **How you access it** | Browser via `[yourip]:port` | Browser via `localhost:port` | Browser, any IDE, REST API, n8n |
+| **Setup** | `npx @cloudcli-ai/cloudcli` | `npx @cloudcli-ai/cloudcli@latest sandbox ~/project` | No setup required |
+| **Isolation** | Runs on your host | Hypervisor-level sandbox (microVM) | Full cloud isolation |
+| **Machine needs to stay on** | Yes | Yes | No |
+| **Mobile access** | Any browser on your network | Any browser on your network | Any device, native app coming |
+| **Agents supported** | Claude Code, Cursor CLI, Codex, Gemini CLI | Claude Code, Codex, Gemini CLI | Claude Code, Cursor CLI, Codex, Gemini CLI |
+| **File explorer and Git** | Yes | Yes | Yes |
+| **MCP configuration** | Synced with `~/.claude` | Managed via UI | Managed via UI |
+| **REST API** | Yes | Yes | Yes |
+| **Team sharing** | No | No | Yes |
+| **Platform cost** | Free, open source | Free, open source | Starts at $7/month |
 
-> Both options use your own AI subscriptions (Claude, Cursor, etc.) — CloudCLI provides the environment, not the AI.
+> All options use your own AI subscriptions (Claude, Cursor, etc.) — CloudCLI provides the environment, not the AI.
 
 ---
 
@@ -212,9 +222,11 @@ Yes, for self-hosted. CloudCLI UI reads from and writes to the same `~/.claude` 
 
 ## License
 
-GNU General Public License v3.0 - see [LICENSE](LICENSE) file for details.
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later) — see [LICENSE](LICENSE) for the full text, including additional terms under Section 7.
 
-This project is open source and free to use, modify, and distribute under the GPL v3 license.
+This project is open source and free to use, modify, and distribute under the AGPL-3.0-or-later license. If you modify this software and run it as a network service, you must make your modified source code available to users of that service.
+
+CloudCLI UI  - (https://cloudcli.ai).
 
 ## Acknowledgments
 

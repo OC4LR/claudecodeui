@@ -4,7 +4,8 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
-import type { SessionProvider } from '../../../types/app';
+import type { Project, LLMProvider } from '../../../types/app';
+import type { SidebarProps } from '../types/types';
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
@@ -164,7 +165,7 @@ function Sidebar({
       setEditingSession(null);
       setEditingSessionName('');
     },
-    onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: SessionProvider) => {
+    onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
       void updateSessionSummary(projectName, sessionId, summary, provider);
     },
     t,
@@ -222,7 +223,7 @@ function Sidebar({
             isSearching={isSearching}
             searchProgress={searchProgress}
             onConversationResultClick={(projectName: string, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => {
-              const resolvedProvider = (provider || 'claude') as SessionProvider;
+              const resolvedProvider = (provider || 'claude') as LLMProvider;
               const project = projects.find(p => p.name === projectName);
               const searchTarget = { __searchTargetTimestamp: messageTimestamp || null, __searchTargetSnippet: messageSnippet || null };
               const sessionObj = {
@@ -253,6 +254,7 @@ function Sidebar({
             updateAvailable={updateAvailable}
             releaseInfo={releaseInfo}
             latestVersion={latestVersion}
+            currentVersion={currentVersion}
             onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
             projectListProps={projectListProps}

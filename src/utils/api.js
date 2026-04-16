@@ -89,10 +89,15 @@ export const api = {
     authenticatedFetch(`/api/gemini/sessions/${sessionId}`, {
       method: 'DELETE',
     }),
-  deleteProject: (projectName, force = false) =>
-    authenticatedFetch(`/api/projects/${projectName}${force ? '?force=true' : ''}`, {
+  deleteProject: (projectName, force = false, deleteData = false) => {
+    const params = new URLSearchParams();
+    if (force) params.set('force', 'true');
+    if (deleteData) params.set('deleteData', 'true');
+    const qs = params.toString();
+    return authenticatedFetch(`/api/projects/${projectName}${qs ? `?${qs}` : ''}`, {
       method: 'DELETE',
-    }),
+    });
+  },
   searchConversationsUrl: (query, limit = 50) => {
     const token = localStorage.getItem('auth-token');
     const params = new URLSearchParams({ q: query, limit: String(limit) });
@@ -111,6 +116,8 @@ export const api = {
     }),
   readFile: (projectName, filePath) =>
     authenticatedFetch(`/api/projects/${projectName}/file?filePath=${encodeURIComponent(filePath)}`),
+  readFileBlob: (projectName, filePath) =>
+    authenticatedFetch(`/api/projects/${projectName}/files/content?path=${encodeURIComponent(filePath)}`),
   saveFile: (projectName, filePath, content) =>
     authenticatedFetch(`/api/projects/${projectName}/file`, {
       method: 'PUT',
@@ -151,6 +158,47 @@ export const api = {
       body: formData,
       headers: {}, // Let browser set Content-Type for FormData
     }),
+
+  // TaskMaster endpoints
+  taskmaster: {
+    // Initialize TaskMaster in a project
+    init: (projectName) =>
+      authenticatedFetch(`/api/taskmaster/init/${projectName}`, {
+        method: 'POST',
+      }),
+
+    // Add a new task
+    addTask: (projectName, { prompt, title, description, priority, dependencies }) =>
+      authenticatedFetch(`/api/taskmaster/add-task/${projectName}`, {
+        method: 'POST',
+        body: JSON.stringify({ prompt, title, description, priority, dependencies }),
+      }),
+
+    // Parse PRD to generate tasks
+    parsePRD: (projectName, { fileName, numTasks, append }) =>
+      authenticatedFetch(`/api/taskmaster/parse-prd/${projectName}`, {
+        method: 'POST',
+        body: JSON.stringify({ fileName, numTasks, append }),
+      }),
+
+    // Get available PRD templates
+    getTemplates: () =>
+      authenticatedFetch('/api/taskmaster/prd-templates'),
+
+    // Apply a PRD template
+    applyTemplate: (projectName, { templateId, fileName, customizations }) =>
+      authenticatedFetch(`/api/taskmaster/apply-template/${projectName}`, {
+        method: 'POST',
+        body: JSON.stringify({ templateId, fileName, customizations }),
+      }),
+
+    // Update a task
+    updateTask: (projectName, taskId, updates) =>
+      authenticatedFetch(`/api/taskmaster/update-task/${projectName}/${taskId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      }),
+  },
 
   // Browse filesystem for project suggestions
   browseFilesystem: (dirPath = null) => {

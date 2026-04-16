@@ -2,11 +2,10 @@ import { useTranslation } from 'react-i18next';
 import { useCallback, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type { ChatMessage } from '../../types/types';
-import type { Project, ProjectSession, SessionProvider } from '../../../../types/app';
+import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import { getIntrinsicMessageKey } from '../../utils/messageKeys';
 import MessageComponent from './MessageComponent';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
-import AssistantThinkingIndicator from './AssistantThinkingIndicator';
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: RefObject<HTMLDivElement>;
@@ -16,8 +15,8 @@ interface ChatMessagesPaneProps {
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
-  provider: SessionProvider;
-  setProvider: (provider: SessionProvider) => void;
+  provider: LLMProvider;
+  setProvider: (provider: LLMProvider) => void;
   textareaRef: RefObject<HTMLTextAreaElement>;
   claudeModel: string;
   setClaudeModel: (model: string) => void;
@@ -48,7 +47,6 @@ interface ChatMessagesPaneProps {
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject: Project;
-  isLoading: boolean;
 }
 
 export default function ChatMessagesPane({
@@ -91,7 +89,6 @@ export default function ChatMessagesPane({
   showRawParameters,
   showThinking,
   selectedProject,
-  isLoading,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const messageKeyMapRef = useRef<WeakMap<ChatMessage, string>>(new WeakMap());
@@ -252,8 +249,6 @@ export default function ChatMessagesPane({
           })}
         </>
       )}
-
-      {isLoading && <AssistantThinkingIndicator selectedProvider={provider} />}
     </div>
   );
 }
