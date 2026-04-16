@@ -428,6 +428,9 @@ fix_permissions() {
     chown -R node:node /app
     chown -R node:node /home/node
 
+    # Ensure node user owns GOPATH directory
+    mkdir -p /home/node/go && chown -R node:node /home/node/go
+
     log_info "Permissions fixed"
 }
 
@@ -541,7 +544,7 @@ install_claude_plugins() {
 # =============================================================================
 main() {
     # Ensure ~/.local/bin is in PATH for Claude CLI
-    export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
+    export PATH="/usr/local/go/bin:$HOME/.local/bin:/root/.local/bin:$HOME/go/bin:$PATH"
 
     # Add to shell config for interactive shells (claude doctor check)
     # This must be done for BOTH the current user AND root (if different)
@@ -556,6 +559,18 @@ main() {
         fi
     done
 
+    # Add Go paths to shell config for interactive shells
+    for user_home in "$HOME" "/root" "/home/node"; do
+        if [ -d "$user_home" ]; then
+            for shell_rc in "$user_home/.bashrc" "$user_home/.zshrc"; do
+                if [ -d "$(dirname "$shell_rc")" ] && ! grep -q '/usr/local/go/bin' "$shell_rc" 2>/dev/null; then
+                    echo 'export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH' >> "$shell_rc"
+                    log_info "Added Go paths to $shell_rc"
+                fi
+            done
+        fi
+    done
+
     log_info "=========================================="
     log_info "CloudCLI UI Container Starting"
     log_info "=========================================="
@@ -563,6 +578,7 @@ main() {
     log_info "HOME env: $HOME"
     log_info "Working Directory: $(pwd)"
     log_info "Claude CLI: $(which claude 2>/dev/null || echo 'not found')"
+    log_info "Go: $(which go 2>/dev/null && go version 2>/dev/null || echo 'not found')"
     log_info "ANTHROPIC_AUTH_TOKEN set: ${ANTHROPIC_AUTH_TOKEN:+YES}"
     log_info "CLAUDE_SETTINGS_JSON set: ${CLAUDE_SETTINGS_JSON:+YES}"
     log_info "=========================================="
