@@ -18,7 +18,10 @@ COPY package*.json ./
 COPY scripts ./scripts
 
 # Install all dependencies
-RUN npm ci --prefer-offline --no-audit
+# Note: Using npm install instead of npm ci for cross-platform compatibility.
+# npm ci fails when optional platform-specific dependencies (like @rollup/rollup-linux-arm64-gnu)
+# don't match the lock file's architecture (e.g., building ARM64 image from x86_64 host).
+RUN rm -f package-lock.json && npm install --no-audit --no-fund
 
 # Copy source and build frontend
 COPY . .
