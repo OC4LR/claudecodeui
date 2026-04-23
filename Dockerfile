@@ -18,7 +18,10 @@ COPY package*.json ./
 COPY scripts ./scripts
 
 # Install all dependencies
-RUN npm ci --prefer-offline --no-audit
+# Note: Using npm install instead of npm ci for cross-platform compatibility.
+# npm ci fails when optional platform-specific dependencies (like @rollup/rollup-linux-arm64-gnu)
+# don't match the lock file's architecture (e.g., building ARM64 image from x86_64 host).
+RUN rm -f package-lock.json && npm install --no-audit --no-fund
 
 # Copy source and build frontend
 COPY . .
@@ -47,6 +50,8 @@ RUN npm cache clean --force && \
 # -----------------------------------------------------------------------------
 FROM node:22-trixie-slim
 
+ARG GO_VERSION=1.24.2
+
 # Install ONLY essential runtime dependencies (NO build tools!)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
@@ -59,6 +64,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/* \
     && apt-get clean
+
+# Install Go from official binary distribution
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz && \
+    rm -rf /usr/local/go/doc /usr/local/go/blog /usr/local/go/test /usr/local/go/misc && \
+    /usr/local/go/bin/go version
 
 # Install Claude CLI - keep native installation structure for proper version management
 # The install.sh creates:
@@ -127,7 +140,7 @@ COPY --chown=node:node docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Create directories
-RUN mkdir -p /app/data /home/node/.claude /home/node/workspace /home/node/Projects && \
+RUN mkdir -p /app/data /home/node/.claude /home/node/workspace /home/node/Projects /home/node/go && \
     chown -R node:node /app /home/node
 
 # Environment - Claude CLI is in /usr/local/bin which is already in PATH
@@ -135,7 +148,9 @@ ENV NODE_ENV=production \
     SERVER_PORT=3001 \
     HOST=0.0.0.0 \
     DATABASE_PATH=/app/data/auth.db \
-    HOME=/home/node
+    HOME=/home/node \
+    GOPATH=/home/node/go \
+    PATH=/usr/local/go/bin:/home/node/.local/bin:/root/.local/bin:$PATH
 
 EXPOSE 3001
 

@@ -223,9 +223,9 @@ CLAUDEJSON
     "ANTHROPIC_AUTH_TOKEN": "$ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL": "https://open.bigmodel.cn/api/anthropic",
     "API_TIMEOUT_MS": "9000000",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
-      "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.1",
-      "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.7",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.7",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.1",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "16384",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "CLAUDE_CODE_DISABLE_TELEMETRY": "1",
@@ -233,9 +233,92 @@ CLAUDEJSON
     "DISABLE_MEMORY_WARNING": "1"
   },
   "permissions": {
-    "allow": ["*"],
+    "allow": [
+    "Bash(npm *)",
+    "Bash(npx *)",
+    "Bash(bun *)",
+    "Bash(yarn *)",
+    "Bash(pnpm *)",
+    "Bash(node *)",
+    "Bash(docker *)",
+    "Bash(docker-compose *)",
+    "Bash(git status*)",
+    "Bash(git diff*)",
+    "Bash(git log*)",
+    "Bash(git branch*)",
+    "Bash(git checkout*)",
+    "Bash(git switch*)",
+    "Bash(git pull*)",
+    "Bash(git fetch*)",
+    "Bash(git stash*)",
+    "Bash(git rebase*)",
+    "Bash(git merge*)",
+    "Bash(git cherry-pick*)",
+    "Bash(git restore*)",
+    "Bash(git reset HEAD*)",
+    "Bash(ls *)",
+    "Bash(cat *)",
+    "Bash(head *)",
+    "Bash(tail *)",
+    "Bash(find *)",
+    "Bash(which *)",
+    "Bash(whereis *)",
+    "Bash(echo *)",
+    "Bash(pwd)",
+    "Bash(whoami)",
+    "Bash(mkdir *)",
+    "Bash(touch *)",
+    "Bash(cp *)",
+    "Bash(mv *)",
+    "Bash(chmod *)",
+    "Bash(chown *)",
+    "Bash(grep *)",
+    "Bash(sed *)",
+    "Bash(awk *)",
+    "Bash(jq *)",
+    "Bash(yq *)",
+    "Bash(curl *)",
+    "Bash(wget *)",
+    "Bash(python *)",
+    "Bash(python3 *)",
+    "Bash(pip *)",
+    "Bash(pip3 *)",
+    "Bash(poetry *)",
+    "Bash(uv *)",
+    "Bash(php *)",
+    "Bash(composer *)",
+    "Bash(go *)",
+    "Bash(cargo *)",
+    "Bash(rustc *)",
+    "Bash(make *)",
+    "Bash(cmake *)",
+    "Bash(gcc *)",
+    "Bash(g++ *)",
+    "Bash(terraform *)",
+    "Bash(kubectl *)",
+    "Bash(helm *)",
+    "Bash(aws *)",
+    "Bash(gcloud *)",
+    "Bash(az *)",
+    "Bash(gh *)",
+    "Bash(tsc *)",
+    "Bash(eslint *)",
+    "Bash(prettier *)",
+    "Bash(vitest *)",
+    "Bash(jest *)",
+    "Bash(pytest *)",
+    "Bash(php artisan *)",
+    "Bash(./vendor/bin/*)",
+    "Bash(./node_modules/.bin/*)",
+    "mcp__*",
+    "TodoWrite",
+    "Agent",
+    "TaskOutput",
+    "TaskStop"
+    ],
     "deny": []
   },
+  "defaultMode": "bypassPermissions",
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
     "context-mode@context-mode": true
@@ -344,6 +427,9 @@ fix_permissions() {
     # Fix ownership
     chown -R node:node /app
     chown -R node:node /home/node
+
+    # Ensure node user owns GOPATH directory
+    mkdir -p /home/node/go && chown -R node:node /home/node/go
 
     log_info "Permissions fixed"
 }
@@ -458,7 +544,7 @@ install_claude_plugins() {
 # =============================================================================
 main() {
     # Ensure ~/.local/bin is in PATH for Claude CLI
-    export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
+    export PATH="/usr/local/go/bin:$HOME/.local/bin:/root/.local/bin:$HOME/go/bin:$PATH"
 
     # Add to shell config for interactive shells (claude doctor check)
     # This must be done for BOTH the current user AND root (if different)
@@ -473,6 +559,18 @@ main() {
         fi
     done
 
+    # Add Go paths to shell config for interactive shells
+    for user_home in "$HOME" "/root" "/home/node"; do
+        if [ -d "$user_home" ]; then
+            for shell_rc in "$user_home/.bashrc" "$user_home/.zshrc"; do
+                if [ -d "$(dirname "$shell_rc")" ] && ! grep -q '/usr/local/go/bin' "$shell_rc" 2>/dev/null; then
+                    echo 'export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH' >> "$shell_rc"
+                    log_info "Added Go paths to $shell_rc"
+                fi
+            done
+        fi
+    done
+
     log_info "=========================================="
     log_info "CloudCLI UI Container Starting"
     log_info "=========================================="
@@ -480,6 +578,7 @@ main() {
     log_info "HOME env: $HOME"
     log_info "Working Directory: $(pwd)"
     log_info "Claude CLI: $(which claude 2>/dev/null || echo 'not found')"
+    log_info "Go: $(which go 2>/dev/null && go version 2>/dev/null || echo 'not found')"
     log_info "ANTHROPIC_AUTH_TOKEN set: ${ANTHROPIC_AUTH_TOKEN:+YES}"
     log_info "CLAUDE_SETTINGS_JSON set: ${CLAUDE_SETTINGS_JSON:+YES}"
     log_info "=========================================="

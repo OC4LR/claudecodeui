@@ -12,6 +12,7 @@ import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
+import AboutTab from '../view/tabs/AboutTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
 import type { SettingsProps } from '../types/types';
@@ -55,23 +56,17 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     closeCodexMcpForm,
     submitCodexMcpForm,
     handleCodexMcpDelete,
-    claudeAuthStatus,
-    cursorAuthStatus,
-    codexAuthStatus,
-    geminiAuthStatus,
+    providerAuthStatus,
     geminiPermissionMode,
     setGeminiPermissionMode,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,
     loginProvider,
-    selectedProject,
     handleLoginComplete,
   } = useSettingsController({
     isOpen,
-    initialTab,
-    projects,
-    onClose,
+    initialTab
   });
 
   const {
@@ -104,13 +99,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     return null;
   }
 
-  const isAuthenticated = loginProvider === 'claude'
-    ? claudeAuthStatus.authenticated
-    : loginProvider === 'cursor'
-      ? cursorAuthStatus.authenticated
-      : loginProvider === 'codex'
-        ? codexAuthStatus.authenticated
-        : false;
+  const isAuthenticated = Boolean(loginProvider && providerAuthStatus[loginProvider].authenticated);
 
   return (
     <div className="modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm md:p-4">
@@ -120,7 +109,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
           <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
           <div className="flex items-center gap-2">
             {saveStatus === 'success' && (
-              <span className="text-xs text-muted-foreground animate-in fade-in">{t('saveStatus.success')}</span>
+              <span className="animate-in fade-in text-xs text-muted-foreground">{t('saveStatus.success')}</span>
             )}
             <Button
               variant="ghost"
@@ -157,14 +146,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
 
               {activeTab === 'agents' && (
                 <AgentsSettingsTab
-                  claudeAuthStatus={claudeAuthStatus}
-                  cursorAuthStatus={cursorAuthStatus}
-                  codexAuthStatus={codexAuthStatus}
-                  geminiAuthStatus={geminiAuthStatus}
-                  onClaudeLogin={() => openLoginForProvider('claude')}
-                  onCursorLogin={() => openLoginForProvider('cursor')}
-                  onCodexLogin={() => openLoginForProvider('codex')}
-                  onGeminiLogin={() => openLoginForProvider('gemini')}
+                  providerAuthStatus={providerAuthStatus}
+                  onProviderLogin={openLoginForProvider}
                   claudePermissions={claudePermissions}
                   onClaudePermissionsChange={setClaudePermissions}
                   cursorPermissions={cursorPermissions}
@@ -206,6 +189,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               {activeTab === 'api' && <CredentialsSettingsTab />}
 
               {activeTab === 'plugins' && <PluginSettingsTab />}
+
+              {activeTab === 'about' && <AboutTab />}
             </div>
           </main>
         </div>
@@ -216,7 +201,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         provider={loginProvider || 'claude'}
-        project={selectedProject}
         onComplete={handleLoginComplete}
         isAuthenticated={isAuthenticated}
       />

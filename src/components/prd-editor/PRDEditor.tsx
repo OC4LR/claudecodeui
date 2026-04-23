@@ -39,9 +39,7 @@ export default function PRDEditor({
     projectPath,
   });
 
-  const { existingPrds, refreshExistingPrds } = usePrdRegistry({
-    projectName: project?.name,
-  });
+  const { existingPrds, refreshExistingPrds } = usePrdRegistry(project?.name);
 
   const isExistingFile = useMemo(() => !isNewFile || Boolean(file?.isExisting), [file?.isExisting, isNewFile]);
 

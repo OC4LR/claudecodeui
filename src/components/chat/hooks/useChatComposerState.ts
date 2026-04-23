@@ -19,7 +19,7 @@ import type {
   PendingPermissionRequest,
   PermissionMode,
 } from '../types/types';
-import type { Project, ProjectSession, SessionProvider } from '../../../types/app';
+import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
@@ -33,7 +33,7 @@ interface UseChatComposerStateArgs {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
-  provider: SessionProvider;
+  provider: LLMProvider;
   permissionMode: PermissionMode | string;
   cyclePermissionMode: () => void;
   cursorModel: string;
@@ -878,30 +878,6 @@ export function useChatComposerState({
     });
   }, [canAbortSession, currentSessionId, pendingViewSessionRef, provider, selectedSession?.id, sendMessage]);
 
-  const handleTranscript = useCallback((text: string) => {
-    if (!text.trim()) {
-      return;
-    }
-
-    setInput((previousInput) => {
-      const newInput = previousInput.trim() ? `${previousInput} ${text}` : text;
-      inputValueRef.current = newInput;
-
-      setTimeout(() => {
-        if (!textareaRef.current) {
-          return;
-        }
-
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-        const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight);
-        setIsTextareaExpanded(textareaRef.current.scrollHeight > lineHeight * 2);
-      }, 0);
-
-      return newInput;
-    });
-  }, []);
-
   const handleGrantToolPermission = useCallback(
     (suggestion: { entry: string; toolName: string }) => {
       if (!suggestion || provider !== 'claude') {
@@ -994,7 +970,6 @@ export function useChatComposerState({
     syncInputOverlayScroll,
     handleClearInput,
     handleAbortSession,
-    handleTranscript,
     handlePermissionDecision,
     handleGrantToolPermission,
     handleInputFocusChange,
