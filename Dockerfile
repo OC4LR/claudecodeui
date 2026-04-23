@@ -76,7 +76,8 @@ RUN ARCH=$(dpkg --print-architecture) && \
     /usr/local/go/bin/go version
 
 # Install Bun - system-wide so both root and node user can access it
-RUN curl -fsSL https://bun.sh/install | bash && \
+RUN curl -fsSL https://bun.com/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
     bun --version
 
 # Install Claude CLI - keep native installation structure for proper version management
