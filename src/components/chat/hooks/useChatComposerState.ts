@@ -10,6 +10,7 @@ import type {
   TouchEvent,
 } from 'react';
 import { useDropzone } from 'react-dropzone';
+
 import { authenticatedFetch } from '../../../utils/api';
 import { thinkingModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
@@ -21,6 +22,7 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
+
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
 
@@ -737,7 +739,7 @@ export function useChatComposerState({
     }
     // Re-run when input changes so restored drafts get the same autosize behavior as typed text.
     textareaRef.current.style.height = 'auto';
-    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    textareaRef.current.style.height = `${Math.max(22, textareaRef.current.scrollHeight)}px`;
     const lineHeight = parseInt(window.getComputedStyle(textareaRef.current).lineHeight);
     const expanded = textareaRef.current.scrollHeight > lineHeight * 2;
     setIsTextareaExpanded(expanded);
@@ -824,7 +826,7 @@ export function useChatComposerState({
     (event: FormEvent<HTMLTextAreaElement>) => {
       const target = event.currentTarget;
       target.style.height = 'auto';
-      target.style.height = `${target.scrollHeight}px`;
+      target.style.height = `${Math.max(22, target.scrollHeight)}px`;
       setCursorPosition(target.selectionStart);
       syncInputOverlayScroll(target);
 

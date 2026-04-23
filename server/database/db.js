@@ -1,8 +1,11 @@
-import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+
+import Database from 'better-sqlite3';
+
 import { findAppRoot, getModuleDir } from '../utils/runtime-paths.js';
+
 import {
   APP_CONFIG_TABLE_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SQL,

@@ -12,20 +12,24 @@
  * - WebSocket message streaming
  */
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+
+import { query } from '@anthropic-ai/claude-agent-sdk';
+
 import { CLAUDE_MODELS } from '../shared/modelConstants.js';
+
 import {
   createNotificationEvent,
   notifyRunFailed,
   notifyRunStopped,
   notifyUserIfEnabled
 } from './services/notification-orchestrator.js';
-import { claudeAdapter } from './providers/claude/adapter.js';
-import { createNormalizedMessage } from './providers/types.js';
+import { sessionsService } from './modules/providers/services/sessions.service.js';
+import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
+import { createNormalizedMessage } from './shared/utils.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -35,7 +39,7 @@ const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEO
 // Timeout for the entire SDK query operation (default 10 minutes)
 const SDK_QUERY_TIMEOUT_MS = parseInt(process.env.SDK_QUERY_TIMEOUT_MS, 10) || 600000;
 
-const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion']);
+const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
 function createRequestId() {
   if (typeof crypto.randomUUID === 'function') {
@@ -151,9 +155,15 @@ function mapCliOptionsToSDK(options = {}) {
 
   const sdkOptions = {};
 
-  if (process.env.CLAUDE_CLI_PATH) {
-    sdkOptions.pathToClaudeCodeExecutable = process.env.CLAUDE_CLI_PATH;
-  }
+  // Forward all host env vars (e.g. ANTHROPIC_BASE_URL) to the subprocess.
+  // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
+  sdkOptions.env = { ...process.env };
+
+  // Use CLAUDE_CLI_PATH if explicitly set, otherwise fall back to 'claude' on PATH.
+  // The SDK 0.2.113+ looks for a bundled native binary optional dep by default;
+  // this fallback ensures users who installed via the official installer still work
+  // even when npm prune --production has removed those optional deps.
+  sdkOptions.pathToClaudeCodeExecutable = process.env.CLAUDE_CLI_PATH || 'claude';
 
   // Map working directory
   if (cwd) {
@@ -681,8 +691,8 @@ async function queryClaudeSDK(command, options = {}, ws) {
         const transformedMessage = transformMessage(message);
         const sid = capturedSessionId || sessionId || null;
 
-        // Use adapter to normalize SDK events into NormalizedMessage[]
-        const normalized = claudeAdapter.normalizeMessage(transformedMessage, sid);
+        // Use provider sessions service to normalize SDK events into NormalizedMessage[]
+        const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);
         for (const msg of normalized) {
           // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
           if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
@@ -760,12 +770,20 @@ async function queryClaudeSDK(command, options = {}, ws) {
     // Clean up temporary image files on error
     await cleanupTempFiles(tempImagePaths, tempDir);
 
-    // Send error to WebSocket with user-friendly message for timeouts
+    // Check if Claude CLI is installed for a clearer error message
+    const installed = await providerAuthService.isProviderInstalled('claude');
     const isTimeout = error.message && error.message.includes('timeout');
-    const userMessage = isTimeout
-      ? `Query timed out after ${Math.round(SDK_QUERY_TIMEOUT_MS / 60000)} minutes. Try simplifying your request or set SDK_QUERY_TIMEOUT_MS env var to a higher value.`
-      : error.message;
-    ws.send(createNormalizedMessage({ kind: 'error', content: userMessage, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    let errorContent;
+    if (!installed) {
+      errorContent = 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code';
+    } else if (isTimeout) {
+      errorContent = `Query timed out after ${Math.round(SDK_QUERY_TIMEOUT_MS / 60000)} minutes. Try simplifying your request or set SDK_QUERY_TIMEOUT_MS env var to a higher value.`;
+    } else {
+      errorContent = error.message;
+    }
+
+    // Send error to WebSocket
+    ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
     notifyRunFailed({
       userId: ws?.userId || null,
       provider: 'claude',
@@ -773,8 +791,6 @@ async function queryClaudeSDK(command, options = {}, ws) {
       sessionName: sessionSummary,
       error
     });
-
-    throw error;
   }
 }
 

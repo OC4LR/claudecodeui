@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+
 import { userDb, appConfigDb } from '../database/db.js';
 import { IS_PLATFORM } from '../constants/config.js';
 

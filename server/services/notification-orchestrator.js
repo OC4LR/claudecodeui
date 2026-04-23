@@ -1,4 +1,5 @@
 import webPush from 'web-push';
+
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionNamesDb } from '../database/db.js';
 
 const KIND_TO_PREF_KEY = {

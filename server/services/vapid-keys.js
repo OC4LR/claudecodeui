@@ -1,4 +1,5 @@
 import webPush from 'web-push';
+
 import { db } from '../database/db.js';
 
 let cachedKeys = null;

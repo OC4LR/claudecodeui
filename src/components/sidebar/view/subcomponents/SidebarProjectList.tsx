@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
+
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type {
   LoadingSessionsByProject,
   SessionWithProvider,
 } from '../../types/types';
+
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
 
