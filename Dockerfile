@@ -51,7 +51,7 @@ RUN npm cache clean --force && \
 FROM node:22-trixie-slim
 
 ARG GO_VERSION=1.24.2
-ARG BUN_VERSION=latest
+ARG BUN_VERSION=1.3.13
 
 # Install ONLY essential runtime dependencies (NO build tools!)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -76,7 +76,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
     /usr/local/go/bin/go version
 
 # Install Bun - system-wide so both root and node user can access it
-RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s -- "${BUN_VERSION}" && \
+RUN curl -fsSL https://bun.sh/install | bash && \
     bun --version
 
 # Install Claude CLI - keep native installation structure for proper version management
