@@ -136,7 +136,7 @@ COPY --chown=node:node package*.json ./
 
 # Copy built application files
 COPY --from=builder --chown=node:node /app/dist ./dist
-COPY --from=builder --chown=node:node /app/server ./server
+COPY --from=builder --chown=node:node /app/dist-server ./dist-server
 COPY --from=builder --chown=node:node /app/shared ./shared
 COPY --from=builder --chown=node:node /app/scripts ./scripts
 
@@ -164,4 +164,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["node", "server/index.js"]
+CMD ["node", "dist-server/server/index.js"]
