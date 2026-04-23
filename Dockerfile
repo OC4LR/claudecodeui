@@ -51,6 +51,7 @@ RUN npm cache clean --force && \
 FROM node:22-trixie-slim
 
 ARG GO_VERSION=1.24.2
+ARG BUN_VERSION=latest
 
 # Install ONLY essential runtime dependencies (NO build tools!)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -72,6 +73,10 @@ RUN ARCH=$(dpkg --print-architecture) && \
     rm /tmp/go.tar.gz && \
     rm -rf /usr/local/go/doc /usr/local/go/blog /usr/local/go/test /usr/local/go/misc && \
     /usr/local/go/bin/go version
+
+# Install Bun - system-wide so both root and node user can access it
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s -- "${BUN_VERSION}" && \
+    bun --version
 
 # Install Claude CLI - keep native installation structure for proper version management
 # The install.sh creates:
@@ -150,6 +155,7 @@ ENV NODE_ENV=production \
     DATABASE_PATH=/app/data/auth.db \
     HOME=/home/node \
     GOPATH=/home/node/go \
+    BUN_INSTALL=/usr/local \
     PATH=/usr/local/go/bin:/home/node/.local/bin:/root/.local/bin:$PATH
 
 EXPOSE 3001
