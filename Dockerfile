@@ -62,6 +62,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     ca-certificates \
     git \
+    unzip \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt/archives/* \
     && apt-get clean
