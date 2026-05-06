@@ -12,15 +12,13 @@
  * - WebSocket message streaming
  */
 
+import { query } from '@anthropic-ai/claude-agent-sdk';
 import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-
-import { query } from '@anthropic-ai/claude-agent-sdk';
-
 import { CLAUDE_MODELS } from '../shared/modelConstants.js';
-
+import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
 import {
   createNotificationEvent,
   notifyRunFailed,
@@ -35,9 +33,6 @@ const activeSessions = new Map();
 const pendingToolApprovals = new Map();
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
-
-// Timeout for the entire SDK query operation (default 20 minutes)
-const SDK_QUERY_TIMEOUT_MS = parseInt(process.env.SDK_QUERY_TIMEOUT_MS, 10) || 1200000;
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
@@ -159,11 +154,9 @@ function mapCliOptionsToSDK(options = {}) {
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
   sdkOptions.env = { ...process.env };
 
-  // Use CLAUDE_CLI_PATH if explicitly set, otherwise fall back to 'claude' on PATH.
-  // The SDK 0.2.113+ looks for a bundled native binary optional dep by default;
-  // this fallback ensures users who installed via the official installer still work
-  // even when npm prune --production has removed those optional deps.
-  sdkOptions.pathToClaudeCodeExecutable = process.env.CLAUDE_CLI_PATH || 'claude';
+  // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
+  // which does not reliably follow npm's shell wrappers like cross-spawn does.
+  sdkOptions.pathToClaudeCodeExecutable = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
 
   // Map working directory
   if (cwd) {
@@ -533,6 +526,12 @@ async function queryClaudeSDK(command, options = {}, ws) {
       }]
     };
 
+    // Caveat: in 'auto' and 'bypassPermissions' modes the SDK resolves approval
+    // at the permission-mode step and skips this callback, so interactive tools
+    // (AskUserQuestion, ExitPlanMode) won't reach the UI — the classifier/bypass
+    // auto-approves them and the model acts on a generated answer. Move these
+    // tools to a PreToolUse hook (runs before the mode check) if we need them
+    // to work in those modes.
     sdkOptions.canUseTool = async (toolName, input, context) => {
       const requiresInteraction = TOOLS_REQUIRING_INTERACTION.has(toolName);
 
@@ -638,106 +637,54 @@ async function queryClaudeSDK(command, options = {}, ws) {
       addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
     }
 
-    // Process streaming messages with timeout protection
+    // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
-    
-    let queryTimeout;
-    let completed = false;
-    
-    // Create a promise that rejects after timeout
-    const timeoutPromise = new Promise((_, reject) => {
-      queryTimeout = setTimeout(() => {
-        reject(new Error(`SDK query timeout after ${SDK_QUERY_TIMEOUT_MS}ms`));
-      }, SDK_QUERY_TIMEOUT_MS);
-    });
+    for await (const message of queryInstance) {
+      // Capture session ID from first message
+      if (message.session_id && !capturedSessionId) {
 
-    // Send a warning to the client at 80% of the timeout
-    const warningTimeout = setTimeout(() => {
-      if (completed) return;
-      try {
-        ws.send(createNormalizedMessage({
-          kind: 'status',
-          text: `Query is approaching the timeout limit (${Math.round(SDK_QUERY_TIMEOUT_MS / 160000)} min). Consider simplifying your request.`,
-          sessionId: capturedSessionId || sessionId || null,
-          provider: 'claude'
-        }));
-      } catch (_) { /* client may have disconnected */ }
-    }, Math.round(SDK_QUERY_TIMEOUT_MS * 0.8));
-    
-    // Create a promise for the actual query
-    const queryPromise = (async () => {
-      for await (const message of queryInstance) {
-        // Capture session ID from first message
-        if (message.session_id && !capturedSessionId) {
+        capturedSessionId = message.session_id;
+        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
 
-          capturedSessionId = message.session_id;
-          addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
-
-          // Set session ID on writer
-          if (ws.setSessionId && typeof ws.setSessionId === 'function') {
-            ws.setSessionId(capturedSessionId);
-          }
-
-          // Send session-created event only once for new sessions
-          if (!sessionId && !sessionCreatedSent) {
-            sessionCreatedSent = true;
-            ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
-          }
-        } else {
-          // session_id already captured
+        // Set session ID on writer
+        if (ws.setSessionId && typeof ws.setSessionId === 'function') {
+          ws.setSessionId(capturedSessionId);
         }
 
-        // Transform and normalize message via adapter
-        const transformedMessage = transformMessage(message);
-        const sid = capturedSessionId || sessionId || null;
-
-        // Use provider sessions service to normalize SDK events into NormalizedMessage[]
-        const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);
-        for (const msg of normalized) {
-          // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
-          if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
-            msg.parentToolUseId = transformedMessage.parentToolUseId;
-          }
-          ws.send(msg);
+        // Send session-created event only once for new sessions
+        if (!sessionId && !sessionCreatedSent) {
+          sessionCreatedSent = true;
+          ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
         }
+      } else {
+        // session_id already captured
+      }
 
-        // Extract and send token budget updates from result messages
-        if (message.type === 'result') {
-          const models = Object.keys(message.modelUsage || {});
-          if (models.length > 0) {
-            // Model info available in result message
-          }
-          const tokenBudgetData = extractTokenBudget(message);
-          if (tokenBudgetData) {
-            ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
-          }
+      // Transform and normalize message via adapter
+      const transformedMessage = transformMessage(message);
+      const sid = capturedSessionId || sessionId || null;
+
+      // Use adapter to normalize SDK events into NormalizedMessage[]
+      const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);
+      for (const msg of normalized) {
+        // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
+        if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
+          msg.parentToolUseId = transformedMessage.parentToolUseId;
+        }
+        ws.send(msg);
+      }
+
+      // Extract and send token budget updates from result messages
+      if (message.type === 'result') {
+        const models = Object.keys(message.modelUsage || {});
+        if (models.length > 0) {
+          // Model info available in result message
+        }
+        const tokenBudgetData = extractTokenBudget(message);
+        if (tokenBudgetData) {
+          ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
         }
       }
-    })();
-    
-    try {
-      // Race between query completion and timeout
-      await Promise.race([queryPromise, timeoutPromise]);
-      clearTimeout(queryTimeout);
-      clearTimeout(warningTimeout);
-      completed = true;
-    } catch (error) {
-      clearTimeout(queryTimeout);
-      clearTimeout(warningTimeout);
-
-      // If timeout occurred, try to abort the session
-      if (error.message.includes('timeout') && capturedSessionId) {
-        console.error(`SDK query timeout for session ${capturedSessionId}, attempting abort`);
-        try {
-          const session = getSession(capturedSessionId);
-          if (session?.instance?.interrupt) {
-            await session.instance.interrupt();
-          }
-        } catch (abortError) {
-          console.error('Error aborting timed out session:', abortError);
-        }
-      }
-      throw error;
     }
 
     // Clean up session on completion
@@ -755,7 +702,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
       provider: 'claude',
       sessionId: capturedSessionId || sessionId || null,
       sessionName: sessionSummary,
-      stopReason: completed ? 'completed' : 'timeout'
+      stopReason: 'completed'
     });
     // Complete
 
@@ -772,15 +719,9 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     // Check if Claude CLI is installed for a clearer error message
     const installed = await providerAuthService.isProviderInstalled('claude');
-    const isTimeout = error.message && error.message.includes('timeout');
-    let errorContent;
-    if (!installed) {
-      errorContent = 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code';
-    } else if (isTimeout) {
-      errorContent = `Query timed out after ${Math.round(SDK_QUERY_TIMEOUT_MS / 60000)} minutes. Try simplifying your request or set SDK_QUERY_TIMEOUT_MS env var to a higher value.`;
-    } else {
-      errorContent = error.message;
-    }
+    const errorContent = !installed
+      ? 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code'
+      : error.message;
 
     // Send error to WebSocket
     ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));

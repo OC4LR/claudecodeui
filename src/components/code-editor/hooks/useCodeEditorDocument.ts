@@ -24,7 +24,10 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isBinary, setIsBinary] = useState(false);
-  const fileProjectName = file.projectName ?? projectPath;
+  // `fileProjectId` is the DB primary key passed down from the editor sidebar;
+  // the fallback to `projectPath` preserves older callers that didn't yet
+  // propagate the identifier.
+  const fileProjectId = file.projectId ?? projectPath;
   const filePath = file.path;
   const fileName = file.name;
   const fileDiffNewString = file.diffInfo?.new_string;
@@ -50,11 +53,11 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
           return;
         }
 
-        if (!fileProjectName) {
+        if (!fileProjectId) {
           throw new Error('Missing project identifier');
         }
 
-        const response = await api.readFile(fileProjectName, filePath);
+        const response = await api.readFile(fileProjectId, filePath);
         if (!response.ok) {
           throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
         }
@@ -71,18 +74,18 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
     };
 
     loadFileContent();
-  }, [file.diffInfo, file.name, fileDiffNewString, fileDiffOldString, fileName, filePath, fileProjectName]);
+  }, [file.diffInfo, file.name, fileDiffNewString, fileDiffOldString, fileName, filePath, fileProjectId]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     setSaveError(null);
 
     try {
-      if (!fileProjectName) {
+      if (!fileProjectId) {
         throw new Error('Missing project identifier');
       }
 
-      const response = await api.saveFile(fileProjectName, filePath, content);
+      const response = await api.saveFile(fileProjectId, filePath, content);
 
       if (!response.ok) {
         const contentType = response.headers.get('content-type');
@@ -107,7 +110,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
     } finally {
       setSaving(false);
     }
-  }, [content, filePath, fileProjectName]);
+  }, [content, filePath, fileProjectId]);
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([content], { type: 'text/plain' });

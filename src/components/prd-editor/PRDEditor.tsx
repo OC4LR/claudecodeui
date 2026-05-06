@@ -1,7 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-
 import type { Project } from '../../types/app';
-
 import { usePrdDocument } from './hooks/usePrdDocument';
 import { usePrdKeyboardShortcuts } from './hooks/usePrdKeyboardShortcuts';
 import { usePrdRegistry } from './hooks/usePrdRegistry';
@@ -41,12 +39,16 @@ export default function PRDEditor({
     projectPath,
   });
 
-  const { existingPrds, refreshExistingPrds } = usePrdRegistry(project?.name);
+  // PRD hooks are now addressed by DB `projectId`; the backend resolves the
+  // `.taskmaster/docs` folder from the `projects` table.
+  const { existingPrds, refreshExistingPrds } = usePrdRegistry({
+    projectId: project?.projectId,
+  });
 
   const isExistingFile = useMemo(() => !isNewFile || Boolean(file?.isExisting), [file?.isExisting, isNewFile]);
 
   const { savePrd, saving, saveSuccess } = usePrdSave({
-    projectName: project?.name,
+    projectId: project?.projectId,
     existingPrds,
     isExistingFile,
     onAfterSave: async () => {

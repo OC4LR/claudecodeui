@@ -67,6 +67,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/cache/apt/archives/* \
     && apt-get clean
 
+# Install PostgreSQL 17 from Debian Trixie repos
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-17 \
+    postgresql-client-17 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Configure PostgreSQL: trust auth, localhost only
+RUN pg_dropcluster 17 main --stop 2>/dev/null || true && \
+    pg_createcluster 17 main -- --auth-local=trust --auth-host=trust --encoding=UTF8 --locale=C.UTF-8 && \
+    cat > /etc/postgresql/17/main/pg_hba.conf <<'PGHBA'
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            trust
+host    all             all             ::1/128                 trust
+PGHBA
+    sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" /etc/postgresql/17/main/postgresql.conf && \
+    mkdir -p /var/run/postgresql && \
+    chown postgres:postgres /var/run/postgresql
+
+# Copy PostgreSQL init scripts
+COPY docker/initdb/ /docker/initdb/
+
 # Install Go from official binary distribution
 RUN ARCH=$(dpkg --print-architecture) && \
     curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz && \

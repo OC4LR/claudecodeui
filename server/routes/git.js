@@ -1,10 +1,8 @@
+import express from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import { promises as fs } from 'fs';
-
-import express from 'express';
-
-import { extractProjectDirectory } from '../projects.js';
+import { projectsDb } from '../modules/database/index.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
 
@@ -103,14 +101,19 @@ function validateProjectPath(projectPath) {
   return resolved;
 }
 
-// Helper function to get the actual project path from the encoded project name
-async function getActualProjectPath(projectName) {
-  let projectPath;
-  try {
-    projectPath = await extractProjectDirectory(projectName);
-  } catch (error) {
-    console.error(`Error extracting project directory for ${projectName}:`, error);
-    throw new Error(`Unable to resolve project path for "${projectName}"`);
+/**
+ * Resolve the absolute project directory for a given DB `projectId`.
+ *
+ * After the projectName → projectId migration, every git endpoint receives
+ * the DB primary key (`project` query/body param). The legacy filesystem
+ * resolver that walked Claude's JSONL history is no longer used here; the
+ * path comes straight from the `projects` table and is then sanity-checked
+ * by `validateProjectPath` before any `git` command runs against it.
+ */
+async function getActualProjectPath(projectId) {
+  const projectPath = await projectsDb.getProjectPathById(projectId);
+  if (!projectPath) {
+    throw new Error(`Unable to resolve project path for "${projectId}"`);
   }
   return validateProjectPath(projectPath);
 }
@@ -294,7 +297,7 @@ router.get('/status', async (req, res) => {
   const { project } = req.query;
 
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -357,7 +360,7 @@ router.get('/diff', async (req, res) => {
   const { project, file } = req.query;
   
   if (!project || !file) {
-    return res.status(400).json({ error: 'Project name and file path are required' });
+    return res.status(400).json({ error: 'Project id and file path are required' });
   }
 
   try {
@@ -440,7 +443,7 @@ router.get('/file-with-diff', async (req, res) => {
   const { project, file } = req.query;
 
   if (!project || !file) {
-    return res.status(400).json({ error: 'Project name and file path are required' });
+    return res.status(400).json({ error: 'Project id and file path are required' });
   }
 
   try {
@@ -520,7 +523,7 @@ router.post('/initial-commit', async (req, res) => {
   const { project } = req.body;
 
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -595,7 +598,7 @@ router.post('/revert-local-commit', async (req, res) => {
   const { project } = req.body;
 
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -642,7 +645,7 @@ router.get('/branches', async (req, res) => {
   const { project } = req.query;
   
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -686,7 +689,7 @@ router.post('/checkout', async (req, res) => {
   const { project, branch } = req.body;
   
   if (!project || !branch) {
-    return res.status(400).json({ error: 'Project name and branch are required' });
+    return res.status(400).json({ error: 'Project id and branch are required' });
   }
 
   try {
@@ -708,7 +711,7 @@ router.post('/create-branch', async (req, res) => {
   const { project, branch } = req.body;
   
   if (!project || !branch) {
-    return res.status(400).json({ error: 'Project name and branch name are required' });
+    return res.status(400).json({ error: 'Project id and branch name are required' });
   }
 
   try {
@@ -730,7 +733,7 @@ router.post('/delete-branch', async (req, res) => {
   const { project, branch } = req.body;
 
   if (!project || !branch) {
-    return res.status(400).json({ error: 'Project name and branch name are required' });
+    return res.status(400).json({ error: 'Project id and branch name are required' });
   }
 
   try {
@@ -756,7 +759,7 @@ router.get('/commits', async (req, res) => {
   const { project, limit = 10 } = req.query;
   
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -813,7 +816,7 @@ router.get('/commit-diff', async (req, res) => {
   const { project, commit } = req.query;
   
   if (!project || !commit) {
-    return res.status(400).json({ error: 'Project name and commit hash are required' });
+    return res.status(400).json({ error: 'Project id and commit hash are required' });
   }
 
   try {
@@ -845,7 +848,7 @@ router.post('/generate-commit-message', async (req, res) => {
   const { project, files, provider = 'claude' } = req.body;
 
   if (!project || !files || files.length === 0) {
-    return res.status(400).json({ error: 'Project name and files are required' });
+    return res.status(400).json({ error: 'Project id and files are required' });
   }
 
   // Validate provider
@@ -1050,7 +1053,7 @@ router.get('/remote-status', async (req, res) => {
   const { project } = req.query;
   
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -1128,7 +1131,7 @@ router.post('/fetch', async (req, res) => {
   const { project } = req.body;
   
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -1169,7 +1172,7 @@ router.post('/pull', async (req, res) => {
   const { project } = req.body;
   
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -1237,7 +1240,7 @@ router.post('/push', async (req, res) => {
   const { project } = req.body;
   
   if (!project) {
-    return res.status(400).json({ error: 'Project name is required' });
+    return res.status(400).json({ error: 'Project id is required' });
   }
 
   try {
@@ -1308,7 +1311,7 @@ router.post('/publish', async (req, res) => {
   const { project, branch } = req.body;
   
   if (!project || !branch) {
-    return res.status(400).json({ error: 'Project name and branch are required' });
+    return res.status(400).json({ error: 'Project id and branch are required' });
   }
 
   try {
@@ -1387,7 +1390,7 @@ router.post('/discard', async (req, res) => {
   const { project, file } = req.body;
   
   if (!project || !file) {
-    return res.status(400).json({ error: 'Project name and file path are required' });
+    return res.status(400).json({ error: 'Project id and file path are required' });
   }
 
   try {
@@ -1441,7 +1444,7 @@ router.post('/delete-untracked', async (req, res) => {
   const { project, file } = req.body;
   
   if (!project || !file) {
-    return res.status(400).json({ error: 'Project name and file path are required' });
+    return res.status(400).json({ error: 'Project id and file path are required' });
   }
 
   try {

@@ -2,10 +2,7 @@ import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import type {
-  LoadingSessionsByProject,
-  SessionWithProvider,
-} from '../../types/types';
+import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
 
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
@@ -20,13 +17,16 @@ export type SidebarProjectListProps = {
   expandedProjects: Set<string>;
   editingProject: string | null;
   editingName: string;
-  loadingSessions: LoadingSessionsByProject;
   initialSessionsLoaded: Set<string>;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
   deletingProjects: Set<string>;
+  tasksEnabled: boolean;
+  mcpServerStatus: MCPServerStatus;
   getProjectSessions: (project: Project) => SessionWithProvider[];
+  onLoadMoreSessions: (projectId: string) => void;
+  loadingMoreProjects: Set<string>;
   isProjectStarred: (projectName: string) => boolean;
   onEditingNameChange: (value: string) => void;
   onToggleProject: (projectName: string) => void;
@@ -43,7 +43,6 @@ export type SidebarProjectListProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onLoadMoreSessions: (project: Project) => void;
   onNewSession: (project: Project) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
@@ -62,13 +61,16 @@ export default function SidebarProjectList({
   expandedProjects,
   editingProject,
   editingName,
-  loadingSessions,
   initialSessionsLoaded,
   currentTime,
   editingSession,
   editingSessionName,
   deletingProjects,
+  tasksEnabled,
+  mcpServerStatus,
   getProjectSessions,
+  onLoadMoreSessions,
+  loadingMoreProjects,
   isProjectStarred,
   onEditingNameChange,
   onToggleProject,
@@ -80,7 +82,6 @@ export default function SidebarProjectList({
   onDeleteProject,
   onSessionSelect,
   onDeleteSession,
-  onLoadMoreSessions,
   onNewSession,
   onEditingSessionNameChange,
   onStartEditingSession,
@@ -114,22 +115,26 @@ export default function SidebarProjectList({
       {!showProjects
         ? state
         : filteredProjects.map((project) => (
+            // React key + per-project state lookups all use the DB `projectId`
+            // so they remain stable across renames and session changes.
             <SidebarProjectItem
-              key={project.name}
+              key={project.projectId}
               project={project}
               selectedProject={selectedProject}
               selectedSession={selectedSession}
-              isExpanded={expandedProjects.has(project.name)}
-              isDeleting={deletingProjects.has(project.name)}
-              isStarred={isProjectStarred(project.name)}
+              isExpanded={expandedProjects.has(project.projectId)}
+              isDeleting={deletingProjects.has(project.projectId)}
+              isStarred={isProjectStarred(project.projectId)}
               editingProject={editingProject}
               editingName={editingName}
               sessions={getProjectSessions(project)}
-              initialSessionsLoaded={initialSessionsLoaded.has(project.name)}
-              isLoadingSessions={Boolean(loadingSessions[project.name])}
+              initialSessionsLoaded={initialSessionsLoaded.has(project.projectId)}
+              isLoadingMoreSessions={loadingMoreProjects.has(project.projectId)}
               currentTime={currentTime}
               editingSession={editingSession}
               editingSessionName={editingSessionName}
+              tasksEnabled={tasksEnabled}
+              mcpServerStatus={mcpServerStatus}
               onEditingNameChange={onEditingNameChange}
               onToggleProject={onToggleProject}
               onProjectSelect={onProjectSelect}

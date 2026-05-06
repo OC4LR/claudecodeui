@@ -4,7 +4,9 @@ import { authenticatedFetch } from '../../../utils/api';
 import type { GitOperationResponse } from '../types/types';
 
 type UseRevertLocalCommitOptions = {
-  projectName: string | null;
+  // DB primary key for the project; forwarded to the git API via the
+  // `project` body param.
+  projectId: string | null;
   onSuccess?: () => void;
 };
 
@@ -12,11 +14,11 @@ async function readJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function useRevertLocalCommit({ projectName, onSuccess }: UseRevertLocalCommitOptions) {
+export function useRevertLocalCommit({ projectId, onSuccess }: UseRevertLocalCommitOptions) {
   const [isRevertingLocalCommit, setIsRevertingLocalCommit] = useState(false);
 
   const revertLatestLocalCommit = useCallback(async () => {
-    if (!projectName) {
+    if (!projectId) {
       return;
     }
 
@@ -25,7 +27,7 @@ export function useRevertLocalCommit({ projectName, onSuccess }: UseRevertLocalC
       const response = await authenticatedFetch('/api/git/revert-local-commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project: projectName }),
+        body: JSON.stringify({ project: projectId }),
       });
       const data = await readJson<GitOperationResponse>(response);
 
@@ -40,7 +42,7 @@ export function useRevertLocalCommit({ projectName, onSuccess }: UseRevertLocalC
     } finally {
       setIsRevertingLocalCommit(false);
     }
-  }, [onSuccess, projectName]);
+  }, [onSuccess, projectId]);
 
   return {
     isRevertingLocalCommit,

@@ -127,7 +127,7 @@ export function useFileTreeOperations({
 
     setOperationLoading(true);
     try {
-      const response = await api.renameFile(selectedProject.name, {
+      const response = await api.renameFile(selectedProject.projectId, {
         oldPath: renamingItem.path,
         newName: renameValue,
       });
@@ -162,7 +162,7 @@ export function useFileTreeOperations({
 
     setOperationLoading(true);
     try {
-      const response = await api.deleteFile(selectedProject.name, {
+      const response = await api.deleteFile(selectedProject.projectId, {
         path: item.path,
         type: item.type,
       });
@@ -213,7 +213,7 @@ export function useFileTreeOperations({
 
     setOperationLoading(true);
     try {
-      const response = await api.createFile(selectedProject.name, {
+      const response = await api.createFile(selectedProject.projectId, {
         path: newItemParent,
         type: newItemType,
         name: newItemName,
@@ -288,7 +288,7 @@ export function useFileTreeOperations({
     if (!selectedProject) return;
 
     // Use the binary streaming endpoint so downloads preserve raw bytes.
-    const response = await api.readFileBlob(selectedProject.name, item.path);
+    const response = await api.readFileBlob(selectedProject.projectId, item.path);
 
     if (!response.ok) {
       throw new Error('Failed to download file');
@@ -309,7 +309,7 @@ export function useFileTreeOperations({
       const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name;
 
       if (node.type === 'file') {
-        const response = await api.readFileBlob(selectedProject.name, node.path);
+        const response = await api.readFileBlob(selectedProject.projectId, node.path);
         if (!response.ok) {
           throw new Error(`Failed to download "${node.name}" for ZIP export`);
         }

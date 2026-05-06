@@ -13,7 +13,9 @@ export interface ProjectSession {
   lastActivity?: string;
   messageCount?: number;
   __provider?: LLMProvider;
-  __projectName?: string;
+  // Tags the session with the owning project's DB `projectId` so UI handlers
+  // (session switching, sidebar focus, etc.) can match against selectedProject.
+  __projectId?: string;
   [key: string]: unknown;
 }
 
@@ -23,16 +25,29 @@ export interface ProjectSessionMeta {
   [key: string]: unknown;
 }
 
+export interface ProjectTaskmasterInfo {
+  hasTaskmaster?: boolean;
+  status?: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// After the projectName → projectId migration the backend no longer returns a
+// folder-derived `name` string. Projects are now addressed everywhere by the
+// DB-assigned `projectId` (primary key in the `projects` table), and the UI
+// uses the same identifier for routing, state keys and API calls.
 export interface Project {
-  name: string;
+  projectId: string;
   displayName: string;
   fullPath: string;
   path?: string;
+  isStarred?: boolean;
   sessions?: ProjectSession[];
   cursorSessions?: ProjectSession[];
   codexSessions?: ProjectSession[];
   geminiSessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
+  taskmaster?: ProjectTaskmasterInfo;
   [key: string]: unknown;
 }
 
@@ -48,7 +63,13 @@ export interface LoadingProgress {
 export interface ProjectsUpdatedMessage {
   type: 'projects_updated';
   projects: Project[];
-  changedFile?: string;
+  updatedSessionId?: string;
+  updatedSessionIds?: string[];
+  watchProvider?: LLMProvider;
+  watchProviders?: LLMProvider[];
+  changeType?: 'add' | 'change';
+  changeTypes?: Array<'add' | 'change'>;
+  batched?: boolean;
   [key: string]: unknown;
 }
 

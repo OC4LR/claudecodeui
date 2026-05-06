@@ -21,9 +21,11 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
   }, []);
 
   useEffect(() => {
-    const projectName = selectedProject?.name;
+    // File-tree requests use the DB projectId; the backend resolves it to the
+    // project's absolute path through the projects table.
+    const projectId = selectedProject?.projectId;
 
-    if (!projectName) {
+    if (!projectId) {
       setFiles([]);
       setLoading(false);
       return;
@@ -43,7 +45,7 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
         setLoading(true);
       }
       try {
-        const response = await api.getFiles(projectName, { signal: abortControllerRef.current!.signal });
+        const response = await api.getFiles(projectId, { signal: abortControllerRef.current!.signal });
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -80,7 +82,7 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
       isActive = false;
       abortControllerRef.current?.abort();
     };
-  }, [selectedProject?.name, refreshKey]);
+  }, [selectedProject?.projectId, refreshKey]);
 
   return {
     files,

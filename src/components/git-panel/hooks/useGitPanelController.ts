@@ -66,10 +66,12 @@ export function useGitPanelController({
   const [operationError, setOperationError] = useState<string | null>(null);
 
   const clearOperationError = useCallback(() => setOperationError(null), []);
-  const selectedProjectNameRef = useRef<string | null>(selectedProject?.name ?? null);
+  // Tracks the DB projectId so async requests can detect stale responses when
+  // the user switches projects mid-flight.
+  const selectedProjectIdRef = useRef<string | null>(selectedProject?.projectId ?? null);
 
   useEffect(() => {
-    selectedProjectNameRef.current = selectedProject?.name ?? null;
+    selectedProjectIdRef.current = selectedProject?.projectId ?? null;
   }, [selectedProject]);
 
   const provider = useSelectedProvider();
@@ -80,18 +82,19 @@ export function useGitPanelController({
         return;
       }
 
-      const projectName = selectedProject.name;
+      // Git endpoints receive the DB projectId via the `project` query param.
+      const projectId = selectedProject.projectId;
 
       try {
         const response = await fetchWithAuth(
-          `/api/git/diff?project=${encodeURIComponent(projectName)}&file=${encodeURIComponent(filePath)}`,
+          `/api/git/diff?project=${encodeURIComponent(projectId)}&file=${encodeURIComponent(filePath)}`,
           { signal },
         );
         const data = await readJson<GitDiffResponse>(response, signal);
 
         if (
           signal?.aborted ||
-          selectedProjectNameRef.current !== projectName
+          selectedProjectIdRef.current !== projectId
         ) {
           return;
         }
@@ -118,16 +121,17 @@ export function useGitPanelController({
       return;
     }
 
-    const projectName = selectedProject.name;
+    // `project` query param carries the DB projectId everywhere now.
+    const projectId = selectedProject.projectId;
 
     setIsLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/git/status?project=${encodeURIComponent(projectName)}`, { signal });
+      const response = await fetchWithAuth(`/api/git/status?project=${encodeURIComponent(projectId)}`, { signal });
       const data = await readJson<GitStatusResponse>(response, signal);
 
       if (
         signal?.aborted ||
-        selectedProjectNameRef.current !== projectName
+        selectedProjectIdRef.current !== projectId
       ) {
         return;
       }
@@ -152,7 +156,7 @@ export function useGitPanelController({
       }
 
       if (
-        selectedProjectNameRef.current !== projectName
+        selectedProjectIdRef.current !== projectId
       ) {
         return;
       }
@@ -171,7 +175,7 @@ export function useGitPanelController({
     }
 
     try {
-      const response = await fetchWithAuth(`/api/git/branches?project=${encodeURIComponent(selectedProject.name)}`);
+      const response = await fetchWithAuth(`/api/git/branches?project=${encodeURIComponent(selectedProject.projectId)}`);
       const data = await readJson<GitBranchesResponse>(response);
 
       if (!data.error && data.branches) {
@@ -198,7 +202,7 @@ export function useGitPanelController({
     }
 
     try {
-      const response = await fetchWithAuth(`/api/git/remote-status?project=${encodeURIComponent(selectedProject.name)}`);
+      const response = await fetchWithAuth(`/api/git/remote-status?project=${encodeURIComponent(selectedProject.projectId)}`);
       const data = await readJson<GitRemoteStatus | GitApiErrorResponse>(response);
 
       if (!data.error) {
@@ -224,7 +228,7 @@ export function useGitPanelController({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project: selectedProject.name,
+            project: selectedProject.projectId,
             branch: branchName,
           }),
         });
@@ -259,7 +263,7 @@ export function useGitPanelController({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project: selectedProject.name,
+            project: selectedProject.projectId,
             branch: trimmedBranchName,
           }),
         });
@@ -292,7 +296,7 @@ export function useGitPanelController({
         const response = await fetchWithAuth('/api/git/delete-branch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project: selectedProject.name, branch: branchName }),
+          body: JSON.stringify({ project: selectedProject.projectId, branch: branchName }),
         });
 
         const data = await readJson<GitOperationResponse>(response);
@@ -322,7 +326,7 @@ export function useGitPanelController({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: selectedProject.name,
+          project: selectedProject.projectId,
         }),
       });
 
@@ -353,7 +357,7 @@ export function useGitPanelController({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: selectedProject.name,
+          project: selectedProject.projectId,
         }),
       });
 
@@ -383,7 +387,7 @@ export function useGitPanelController({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: selectedProject.name,
+          project: selectedProject.projectId,
         }),
       });
 
@@ -413,7 +417,7 @@ export function useGitPanelController({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: selectedProject.name,
+          project: selectedProject.projectId,
           branch: currentBranch,
         }),
       });
@@ -444,7 +448,7 @@ export function useGitPanelController({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project: selectedProject.name,
+            project: selectedProject.projectId,
             file: filePath,
           }),
         });
@@ -474,7 +478,7 @@ export function useGitPanelController({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project: selectedProject.name,
+            project: selectedProject.projectId,
             file: filePath,
           }),
         });
@@ -500,7 +504,7 @@ export function useGitPanelController({
 
     try {
       const response = await fetchWithAuth(
-        `/api/git/commits?project=${encodeURIComponent(selectedProject.name)}&limit=${RECENT_COMMITS_LIMIT}`,
+        `/api/git/commits?project=${encodeURIComponent(selectedProject.projectId)}&limit=${RECENT_COMMITS_LIMIT}`,
       );
       const data = await readJson<GitCommitsResponse>(response);
 
@@ -520,7 +524,7 @@ export function useGitPanelController({
 
       try {
         const response = await fetchWithAuth(
-          `/api/git/commit-diff?project=${encodeURIComponent(selectedProject.name)}&commit=${commitHash}`,
+          `/api/git/commit-diff?project=${encodeURIComponent(selectedProject.projectId)}&commit=${commitHash}`,
         );
         const data = await readJson<GitDiffResponse>(response);
 
@@ -548,7 +552,7 @@ export function useGitPanelController({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project: selectedProject.name,
+            project: selectedProject.projectId,
             files,
             provider,
           }),
@@ -580,7 +584,7 @@ export function useGitPanelController({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project: selectedProject.name,
+            project: selectedProject.projectId,
             message,
             files,
           }),
@@ -614,7 +618,7 @@ export function useGitPanelController({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project: selectedProject.name,
+          project: selectedProject.projectId,
         }),
       });
 
@@ -647,7 +651,7 @@ export function useGitPanelController({
 
       try {
         const response = await fetchWithAuth(
-          `/api/git/file-with-diff?project=${encodeURIComponent(selectedProject.name)}&file=${encodeURIComponent(filePath)}`,
+          `/api/git/file-with-diff?project=${encodeURIComponent(selectedProject.projectId)}&file=${encodeURIComponent(filePath)}`,
         );
         const data = await readJson<GitFileWithDiffResponse>(response);
 

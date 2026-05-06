@@ -4,8 +4,10 @@ import type { TFunction } from 'i18next';
 import { Button } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import type { SessionWithProvider } from '../../types/types';
+import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
+import { getTaskIndicatorStatus } from '../../utils/utils';
 
+import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
 
 type SidebarProjectItemProps = {
@@ -19,10 +21,12 @@ type SidebarProjectItemProps = {
   editingName: string;
   sessions: SessionWithProvider[];
   initialSessionsLoaded: boolean;
-  isLoadingSessions: boolean;
+  isLoadingMoreSessions: boolean;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
+  tasksEnabled: boolean;
+  mcpServerStatus: MCPServerStatus;
   onEditingNameChange: (name: string) => void;
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
@@ -38,7 +42,7 @@ type SidebarProjectItemProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onLoadMoreSessions: (project: Project) => void;
+  onLoadMoreSessions: (projectId: string) => void;
   onNewSession: (project: Project) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
@@ -47,13 +51,9 @@ type SidebarProjectItemProps = {
   t: TFunction;
 };
 
-const getSessionCountDisplay = (sessions: SessionWithProvider[], hasMoreSessions: boolean): string => {
-  const sessionCount = sessions.length;
-  if (hasMoreSessions && sessionCount >= 5) {
-    return `${sessionCount}+`;
-  }
-
-  return `${sessionCount}`;
+const getSessionCountDisplay = (project: Project, sessions: SessionWithProvider[]): string => {
+  const total = Number(project.sessionMeta?.total ?? sessions.length);
+  return String(total);
 };
 
 export default function SidebarProjectItem({
@@ -67,10 +67,12 @@ export default function SidebarProjectItem({
   editingName,
   sessions,
   initialSessionsLoaded,
-  isLoadingSessions,
+  isLoadingMoreSessions,
   currentTime,
   editingSession,
   editingSessionName,
+  tasksEnabled,
+  mcpServerStatus,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
@@ -89,21 +91,24 @@ export default function SidebarProjectItem({
   onSaveEditingSession,
   t,
 }: SidebarProjectItemProps) {
-  const isSelected = selectedProject?.name === project.name;
-  const isEditing = editingProject === project.name;
-  const hasMoreSessions = project.sessionMeta?.hasMore === true;
-  const sessionCountDisplay = getSessionCountDisplay(sessions, hasMoreSessions);
-  const sessionCountLabel = `${sessionCountDisplay} session${sessions.length === 1 ? '' : 's'}`;
+  // Project identity is tracked by the DB-assigned `projectId` everywhere
+  // after the projectName → projectId migration.
+  const isSelected = selectedProject?.projectId === project.projectId;
+  const isEditing = editingProject === project.projectId;
+  const totalSessionCount = Number(project.sessionMeta?.total ?? sessions.length);
+  const sessionCountDisplay = getSessionCountDisplay(project, sessions);
+  const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
+  const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
 
-  const toggleProject = () => onToggleProject(project.name);
-  const toggleStarProject = () => onToggleStarProject(project.name);
+  const toggleProject = () => onToggleProject(project.projectId);
+  const toggleStarProject = () => onToggleStarProject(project.projectId);
 
   const saveProjectName = () => {
-    onSaveProjectName(project.name);
+    onSaveProjectName(project.projectId);
   };
 
   const selectAndToggleProject = () => {
-    if (selectedProject?.name !== project.name) {
+    if (selectedProject?.projectId !== project.projectId) {
       onProjectSelect(project);
     }
 
@@ -169,6 +174,13 @@ export default function SidebarProjectItem({
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
                         <h3 className="truncate text-sm font-medium text-foreground">{project.displayName}</h3>
+                        {tasksEnabled && (
+                          <TaskIndicator
+                            status={taskStatus}
+                            size="xs"
+                            className="ml-2 hidden flex-shrink-0 md:inline-flex"
+                          />
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
                     </>
@@ -397,7 +409,8 @@ export default function SidebarProjectItem({
         sessions={sessions}
         selectedSession={selectedSession}
         initialSessionsLoaded={initialSessionsLoaded}
-        isLoadingSessions={isLoadingSessions}
+        hasMoreSessions={Boolean(project.sessionMeta?.hasMore)}
+        isLoadingMoreSessions={isLoadingMoreSessions}
         currentTime={currentTime}
         editingSession={editingSession}
         editingSessionName={editingSessionName}

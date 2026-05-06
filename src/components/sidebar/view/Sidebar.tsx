@@ -5,13 +5,21 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
-import type { LLMProvider } from '../../../types/app';
-import type { SidebarProps } from '../types/types';
+import { useTaskMaster } from '../../../contexts/TaskMasterContext';
+import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
+import type { Project, LLMProvider } from '../../../types/app';
+import type { MCPServerStatus, SidebarProps } from '../types/types';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
+
+type TaskMasterSidebarContext = {
+  setCurrentProject: (project: Project) => void;
+  mcpServerStatus: MCPServerStatus;
+};
 
 function Sidebar({
   projects,
@@ -21,6 +29,7 @@ function Sidebar({
   onSessionSelect,
   onNewSession,
   onSessionDelete,
+  onLoadMoreSessions,
   onProjectDelete,
   isLoading,
   loadingProgress,
@@ -39,6 +48,9 @@ function Sidebar({
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;
+  const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
+  const { tasksEnabled } = useTasksSettings();
+  const paletteOps = usePaletteOps();
 
   const {
     isSidebarCollapsed,
@@ -46,7 +58,6 @@ function Sidebar({
     editingProject,
     showNewProject,
     editingName,
-    loadingSessions,
     initialSessionsLoaded,
     currentTime,
     isRefreshing,
@@ -69,6 +80,8 @@ function Sidebar({
     toggleStarProject,
     isProjectStarred,
     getProjectSessions,
+    loadingMoreProjects,
+    loadMoreSessionsForProject,
     startEditing,
     cancelEditing,
     saveProjectName,
@@ -76,7 +89,6 @@ function Sidebar({
     confirmDeleteSession,
     requestProjectDelete,
     confirmDeleteProject,
-    loadMoreSessions,
     handleProjectSelect,
     refreshProjects,
     updateSessionSummary,
@@ -101,7 +113,9 @@ function Sidebar({
     onProjectSelect,
     onSessionSelect,
     onSessionDelete,
+    onLoadMoreSessions,
     onProjectDelete,
+    setCurrentProject,
     setSidebarVisible: (visible) => setPreference('sidebarVisible', visible),
     sidebarVisible,
   });
@@ -116,12 +130,7 @@ function Sidebar({
   }, [isPWA]);
 
   const handleProjectCreated = () => {
-    if (window.refreshProjects) {
-      void window.refreshProjects();
-      return;
-    }
-
-    window.location.reload();
+    void paletteOps.refreshProjects();
   };
 
   const projectListProps: SidebarProjectListProps = {
@@ -134,13 +143,15 @@ function Sidebar({
     expandedProjects,
     editingProject,
     editingName,
-    loadingSessions,
     initialSessionsLoaded,
     currentTime,
     editingSession,
     editingSessionName,
     deletingProjects,
+    tasksEnabled,
+    mcpServerStatus,
     getProjectSessions,
+    loadingMoreProjects,
     isProjectStarred,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
@@ -154,9 +165,7 @@ function Sidebar({
     onDeleteProject: requestProjectDelete,
     onSessionSelect: handleSessionClick,
     onDeleteSession: showDeleteSessionConfirmation,
-    onLoadMoreSessions: (project) => {
-      void loadMoreSessions(project);
-    },
+    onLoadMoreSessions: loadMoreSessionsForProject,
     onNewSession,
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: (sessionId, initialName) => {
@@ -224,14 +233,18 @@ function Sidebar({
             conversationResults={conversationResults}
             isSearching={isSearching}
             searchProgress={searchProgress}
-            onConversationResultClick={(projectName: string, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => {
+            onConversationResultClick={(projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => {
+              // `projectId` (DB key) is the canonical identifier post-migration.
+              // The server emits null when it can't resolve a project row for
+              // the search hit; treat that as "no project" and still navigate
+              // to the session so the user can open it from the URL.
               const resolvedProvider = (provider || 'claude') as LLMProvider;
-              const project = projects.find(p => p.name === projectName);
+              const project = projectId ? projects.find(p => p.projectId === projectId) : null;
               const searchTarget = { __searchTargetTimestamp: messageTimestamp || null, __searchTargetSnippet: messageSnippet || null };
               const sessionObj = {
                 id: sessionId,
                 __provider: resolvedProvider,
-                __projectName: projectName,
+                __projectId: projectId ?? undefined,
                 ...searchTarget,
               };
               if (project) {
@@ -239,12 +252,12 @@ function Sidebar({
                 const sessions = getProjectSessions(project);
                 const existing = sessions.find(s => s.id === sessionId);
                 if (existing) {
-                  handleSessionClick({ ...existing, ...searchTarget }, projectName);
+                  handleSessionClick({ ...existing, ...searchTarget }, project.projectId);
                 } else {
-                  handleSessionClick(sessionObj, projectName);
+                  handleSessionClick(sessionObj, project.projectId);
                 }
               } else {
-                handleSessionClick(sessionObj, projectName);
+                handleSessionClick(sessionObj, projectId ?? '');
               }
             }}
             onRefresh={() => {

@@ -74,7 +74,7 @@ export function usePrdDocument({
         return;
       }
 
-      if (!file?.projectName || !file?.path) {
+      if (!file?.projectId || !file?.path) {
         if (!isMounted) {
           return;
         }
@@ -88,7 +88,8 @@ export function usePrdDocument({
       try {
         setLoading(true);
 
-        const response = await api.readFile(file.projectName, file.path);
+        // readFile uses the DB projectId to resolve the project's path server-side.
+        const response = await api.readFile(file.projectId, file.path);
         if (!response.ok) {
           throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
         }

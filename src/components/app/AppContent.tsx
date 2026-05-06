@@ -4,12 +4,22 @@ import { useTranslation } from 'react-i18next';
 
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
+import CommandPalette from '../command-palette/CommandPalette';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/PaletteOpsContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 
 export default function AppContent() {
+  return (
+    <PaletteOpsProvider>
+      <AppContentInner />
+    </PaletteOpsProvider>
+  );
+}
+
+function AppContentInner() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
@@ -34,6 +44,7 @@ export default function AppContent() {
     sidebarOpen,
     isLoadingProjects,
     externalMessageUpdate,
+    newSessionTrigger,
     setActiveTab,
     setSidebarOpen,
     setIsInputFocused,
@@ -41,6 +52,7 @@ export default function AppContent() {
     openSettings,
     refreshProjectsSilently,
     sidebarSharedProps,
+    handleNewSession,
   } = useProjectsState({
     sessionId,
     navigate,
@@ -49,27 +61,10 @@ export default function AppContent() {
     activeSessions,
   });
 
-  useEffect(() => {
-    // Expose a non-blocking refresh for chat/session flows.
-    // Full loading refreshes are still available through direct fetchProjects calls.
-    window.refreshProjects = refreshProjectsSilently;
-
-    return () => {
-      if (window.refreshProjects === refreshProjectsSilently) {
-        delete window.refreshProjects;
-      }
-    };
-  }, [refreshProjectsSilently]);
-
-  useEffect(() => {
-    window.openSettings = openSettings;
-
-    return () => {
-      if (window.openSettings === openSettings) {
-        delete window.openSettings;
-      }
-    };
-  }, [openSettings]);
+  usePaletteOpsRegister({
+    openSettings,
+    refreshProjects: refreshProjectsSilently,
+  });
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
@@ -197,12 +192,21 @@ export default function AppContent() {
           onSessionNotProcessing={markSessionAsNotProcessing}
           processingSessions={processingSessions}
           onReplaceTemporarySession={replaceTemporarySession}
-          onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
+          onNavigateToSession={(targetSessionId: string, options) =>
+            navigate(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
+          }
           onShowSettings={() => setShowSettings(true)}
           externalMessageUpdate={externalMessageUpdate}
+          newSessionTrigger={newSessionTrigger}
         />
       </div>
 
+      <CommandPalette
+        selectedProject={selectedProject}
+        onStartNewChat={handleNewSession}
+        onOpenSettings={() => openSettings()}
+        onShowTab={setActiveTab}
+      />
     </div>
   );
 }
