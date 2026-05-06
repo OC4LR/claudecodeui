@@ -457,6 +457,86 @@ repair_claude_ownership() {
 }
 
 # =============================================================================
+# PostgreSQL Startup
+# =============================================================================
+start_postgresql() {
+    log_info "Starting PostgreSQL 17..."
+
+    # Ensure socket directory exists (may be on tmpfs or lost on restart)
+    mkdir -p /var/run/postgresql
+    chown postgres:postgres /var/run/postgresql
+
+    # Ensure PG data directory ownership is correct (volume mount may reset it)
+    chown -R postgres:postgres /var/lib/postgresql/17/main 2>/dev/null || true
+
+    # Check if cluster needs initialization (first run with empty volume)
+    if [ ! -f /var/lib/postgresql/17/main/PG_VERSION ]; then
+        log_info "Initializing PostgreSQL cluster (first start)..."
+        pg_dropcluster 17 main --stop 2>/dev/null || true
+        pg_createcluster 17 main -- --auth-local=trust --auth-host=trust --encoding=UTF8 --locale=C.UTF-8
+
+        # Re-apply trust auth config (pg_createcluster may overwrite)
+        printf 'local   all             all                                     trust\nhost    all             all             127.0.0.1/32            trust\nhost    all             all             ::1/128                 trust\n' > /etc/postgresql/17/main/pg_hba.conf
+        sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" /etc/postgresql/17/main/postgresql.conf
+
+        chown -R postgres:postgres /var/lib/postgresql/17/main
+    fi
+
+    # Start PostgreSQL (pg_ctlcluster handles dropping to postgres user)
+    pg_ctlcluster 17 main start
+
+    # Wait for PostgreSQL to be ready (30 second timeout)
+    local attempts=0
+    local max_attempts=30
+    while [ $attempts -lt $max_attempts ]; do
+        if pg_isready -h localhost -p 5432 -q 2>/dev/null; then
+            log_info "PostgreSQL is ready (took ${attempts}s)"
+            break
+        fi
+        attempts=$((attempts + 1))
+        log_info "Waiting for PostgreSQL... ($attempts/$max_attempts)"
+        sleep 1
+    done
+
+    if [ $attempts -eq $max_attempts ]; then
+        log_error "PostgreSQL failed to start within 30 seconds!"
+        pg_ctlcluster 17 main logtail || true
+        return 1
+    fi
+
+    # Run init scripts if they exist (only on first start when DB is fresh)
+    if [ -d /docker/initdb ]; then
+        for sql_file in /docker/initdb/*.sql; do
+            if [ -f "$sql_file" ]; then
+                local sql_basename=$(basename "$sql_file")
+                local marker="/var/lib/postgresql/.init-${sql_basename}.done"
+
+                if [ ! -f "$marker" ]; then
+                    log_info "Running init script: $sql_basename"
+                    if gosu postgres psql -f "$sql_file" 2>&1; then
+                        touch "$marker"
+                        chown postgres:postgres "$marker"
+                        log_info "Init script $sql_basename completed"
+                    else
+                        log_error "Init script $sql_basename FAILED -- marker NOT created, will retry on next start"
+                    fi
+                else
+                    log_info "Skipping $sql_basename (already run)"
+                fi
+            fi
+        done
+    fi
+
+    log_info "PostgreSQL 17 running on localhost:5432"
+    log_info "  Database: dev | User: dev | Host: localhost | Port: 5432"
+}
+
+stop_postgresql() {
+    log_info "Stopping PostgreSQL..."
+    pg_ctlcluster 17 main stop -- -m fast 2>/dev/null || true
+}
+
+# =============================================================================
 # Switch User dan Execute Command
 # =============================================================================
 execute_as_user() {
@@ -546,6 +626,9 @@ main() {
     # Ensure ~/.local/bin is in PATH for Claude CLI
     export PATH="/usr/local/go/bin:$HOME/.local/bin:/root/.local/bin:$HOME/go/bin:$PATH"
 
+    # Trap signals for graceful PostgreSQL shutdown
+    trap 'log_info "Received shutdown signal"; stop_postgresql; exit 0' SIGTERM SIGINT
+
     # Add to shell config for interactive shells (claude doctor check)
     # This must be done for BOTH the current user AND root (if different)
     for user_home in "$HOME" "/root" "/home/node"; do
@@ -585,6 +668,9 @@ main() {
 
     # Fix permissions first
     fix_permissions
+
+    # Start PostgreSQL (background service, before app)
+    start_postgresql
 
     # Note: Claude is installed natively at /root/.local/bin/claude with the actual binary
     # at /root/.local/share/claude/versions/X.X.X/claude

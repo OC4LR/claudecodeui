@@ -63,25 +63,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
     unzip \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/archives/* \
-    && apt-get clean
-
-# Install PostgreSQL 17 from Debian Trixie repos
-RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-17 \
     postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apt/archives/* \
     && apt-get clean
 
 # Configure PostgreSQL: trust auth, localhost only
 RUN pg_dropcluster 17 main --stop 2>/dev/null || true && \
     pg_createcluster 17 main -- --auth-local=trust --auth-host=trust --encoding=UTF8 --locale=C.UTF-8 && \
-    cat > /etc/postgresql/17/main/pg_hba.conf <<'PGHBA'
-local   all             all                                     trust
-host    all             all             127.0.0.1/32            trust
-host    all             all             ::1/128                 trust
-PGHBA
+    printf 'local   all             all                                     trust\nhost    all             all             127.0.0.1/32            trust\nhost    all             all             ::1/128                 trust\n' > /etc/postgresql/17/main/pg_hba.conf && \
     sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" /etc/postgresql/17/main/postgresql.conf && \
     mkdir -p /var/run/postgresql && \
     chown postgres:postgres /var/run/postgresql
@@ -168,9 +159,11 @@ COPY --from=builder --chown=node:node /app/scripts ./scripts
 COPY --chown=node:node docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create directories
 RUN mkdir -p /app/data /home/node/.claude /home/node/workspace /home/node/Projects /home/node/go && \
-    chown -R node:node /app /home/node
+    chown -R node:node /app /home/node && \
+    mkdir -p /var/run/postgresql && \
+    chown postgres:postgres /var/run/postgresql && \
+    chown -R postgres:postgres /var/lib/postgresql
 
 # Environment - Claude CLI is in /usr/local/bin which is already in PATH
 ENV NODE_ENV=production \

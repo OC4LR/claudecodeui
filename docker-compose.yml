@@ -21,6 +21,11 @@ services:
       - VITE_CONTEXT_WINDOW=160000
       - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN}
       - JWT_SECRET=${JWT_SECRET}
+      - POSTGRES_DB=dev
+      - POSTGRES_USER=dev
+      - POSTGRES_HOST=localhost
+      - POSTGRES_PORT=5432
+      - DATABASE_URL=postgresql://dev@localhost:5432/dev
 
     # Persistent Volumes
     volumes:
@@ -28,6 +33,7 @@ services:
       - claude-config:/home/node/.claude
       - claude-workspace:/home/node/workspace
       - claude-projects:/home/node/Projects
+      - pg-data:/var/lib/postgresql/17/main
 
     # Health Check
     healthcheck:
@@ -55,3 +61,6 @@ volumes:
 
   claude-projects:
     name: claude-code-ui-projects
+
+  pg-data:
+    name: claude-code-ui-pg-data

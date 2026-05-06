@@ -1,5 +1,6 @@
 -- 01-init.sql: Create dev database and user for local development
 -- Runs once on first PostgreSQL initialization (marker-based tracking)
+-- NOTE: This script MUST be executed via psql (uses \gexec meta-command).
 
 DO $$
 BEGIN
