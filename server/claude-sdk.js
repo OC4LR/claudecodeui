@@ -36,8 +36,8 @@ const pendingToolApprovals = new Map();
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
-// Timeout for the entire SDK query operation (default 10 minutes)
-const SDK_QUERY_TIMEOUT_MS = parseInt(process.env.SDK_QUERY_TIMEOUT_MS, 10) || 600000;
+// Timeout for the entire SDK query operation (default 20 minutes)
+const SDK_QUERY_TIMEOUT_MS = parseInt(process.env.SDK_QUERY_TIMEOUT_MS, 10) || 1200000;
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 

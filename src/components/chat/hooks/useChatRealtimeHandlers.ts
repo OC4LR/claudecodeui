@@ -195,7 +195,7 @@ export function useChatRealtimeHandlers({
           if (sid) {
             sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
           }
-        }, 100);
+        }, 16);
       }
       // Also route to store for non-active sessions
       if (sid && sid !== activeViewSessionId) {

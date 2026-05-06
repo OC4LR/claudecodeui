@@ -34,6 +34,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptRef = useRef(0);
   const { token } = useAuth();
 
   useEffect(() => {
@@ -61,6 +62,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       const websocket = new WebSocket(wsUrl);
 
       websocket.onopen = () => {
+        reconnectAttemptRef.current = 0;
         setIsConnected(true);
         wsRef.current = websocket;
         if (hasConnectedRef.current) {
@@ -73,6 +75,12 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data.type === 'ping') {
+            if (websocket.readyState === WebSocket.OPEN) {
+              websocket.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+            }
+            return;
+          }
           setLatestMessage(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -82,12 +90,16 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       websocket.onclose = () => {
         setIsConnected(false);
         wsRef.current = null;
-        
-        // Attempt to reconnect after 3 seconds
+
+        const attempt = reconnectAttemptRef.current;
+        reconnectAttemptRef.current = attempt + 1;
+        const baseDelay = Math.min(1000 * Math.pow(2, attempt), 30000);
+        const jitter = Math.random() * 1000;
+
         reconnectTimeoutRef.current = setTimeout(() => {
-          if (unmountedRef.current) return; // Prevent reconnection if unmounted
+          if (unmountedRef.current) return;
           connect();
-        }, 3000);
+        }, baseDelay + jitter);
       };
 
       websocket.onerror = (error) => {

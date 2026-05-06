@@ -1406,9 +1406,33 @@ function handleChatConnection(ws, request) {
     // Wrap WebSocket with writer for consistent interface with SSEStreamWriter
     const writer = new WebSocketWriter(ws, request?.user?.id ?? request?.user?.userId ?? null);
 
+    // Keepalive: ping setiap 25 detik agar proxy/load balancer tidak memutus koneksi idle
+    let missedPings = 0;
+    const HEARTBEAT_INTERVAL_MS = 25000;
+    const MAX_MISSED_PINGS = 3;
+
+    const heartbeat = setInterval(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+            clearInterval(heartbeat);
+            return;
+        }
+        missedPings++;
+        if (missedPings > MAX_MISSED_PINGS) {
+            clearInterval(heartbeat);
+            ws.terminate();
+            return;
+        }
+        ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+    }, HEARTBEAT_INTERVAL_MS);
+
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
+
+            if (data.type === 'pong') {
+                missedPings = 0;
+                return;
+            }
 
             if (data.type === 'claude-command') {
                 console.log('[DEBUG] User message:', data.command || '[Continue/Resume]');
@@ -1539,6 +1563,7 @@ function handleChatConnection(ws, request) {
 
     ws.on('close', () => {
         console.log('🔌 Chat client disconnected');
+        clearInterval(heartbeat);
         // Remove from connected clients
         connectedClients.delete(ws);
     });
