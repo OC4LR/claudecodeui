@@ -217,10 +217,3 @@ export const normalizeProjectForSettings = (project: Project): SettingsProject =
         : fallbackPath,
   };
 };
-
-export function getTaskIndicatorStatus(
-  _project: Project,
-  _mcpStatus?: unknown
-): string {
-  return 'idle';
-}

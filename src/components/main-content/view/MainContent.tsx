@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
@@ -6,29 +6,14 @@ import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import type { MainContentProps } from '../types/types';
-import { useTaskMaster } from '../../task-master/context/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
-import type { Project } from '../../../types/app';
-import { TaskMasterPanel } from '../../task-master';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import ErrorBoundary from './ErrorBoundary';
-
-type TaskMasterContextValue = {
-  currentProject?: Project | null;
-  setCurrentProject?: ((project: Project) => void) | null;
-};
-
-type TasksSettingsContextValue = {
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  isTaskMasterReady: boolean | null;
-};
 
 function MainContent({
   selectedProject,
@@ -56,11 +41,6 @@ function MainContent({
   const { preferences } = useUiPreferences();
   const { autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter } = preferences;
 
-  const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
-
-  const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
-
   const {
     editingFile,
     editorWidth,
@@ -75,23 +55,6 @@ function MainContent({
     selectedProject,
     isMobile,
   });
-
-  useEffect(() => {
-    // Identify projects by DB `projectId`; the TaskMaster context uses the
-    // same identifier to key its internal maps.
-    const selectedProjectId = selectedProject?.projectId;
-    const currentProjectId = currentProject?.projectId;
-
-    if (selectedProject && selectedProjectId !== currentProjectId) {
-      setCurrentProject?.(selectedProject);
-    }
-  }, [selectedProject, currentProject?.projectId, setCurrentProject]);
-
-  useEffect(() => {
-    if (!shouldShowTasksTab && activeTab === 'tasks') {
-      setActiveTab('chat');
-    }
-  }, [shouldShowTasksTab, activeTab, setActiveTab]);
 
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
@@ -115,7 +78,6 @@ function MainContent({
         setActiveTab={setActiveTab}
         selectedProject={selectedProject}
         selectedSession={selectedSession}
-        shouldShowTasksTab={shouldShowTasksTab}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
       />
@@ -147,7 +109,6 @@ function MainContent({
                 sendByCtrlEnter={sendByCtrlEnter}
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
-                onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
               />
             </ErrorBoundary>
           </div>
@@ -174,8 +135,6 @@ function MainContent({
               <GitPanel selectedProject={selectedProject} isMobile={isMobile} onFileOpen={handleFileOpen} />
             </div>
           )}
-
-          {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
 
           <div className={`h-full overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden'}`} />
 

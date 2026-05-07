@@ -43,7 +43,6 @@ function ChatInterface({
   sendByCtrlEnter,
   externalMessageUpdate,
   newSessionTrigger,
-  onShowAllTasks,
 }: ChatInterfaceProps) {
   const { t } = useTranslation('chat');
 
